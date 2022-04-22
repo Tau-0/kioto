@@ -1,2 +1,2 @@
 # kioto
-Concurrency library for C++
+A concurrency library for C++20.
