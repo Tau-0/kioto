@@ -1,6 +1,7 @@
 __pycache__
 _deps
 !cmake-variants.yaml
+.cache/
 .idea_modules/
 .idea/
 .vscode/
