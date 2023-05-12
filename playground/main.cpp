@@ -4,6 +4,7 @@
 #include <coroutine>
 #include <exception>
 #include <iterator>
+#include <tuple>
 
 // Compiler transformation
 // generator natural_nums() {
@@ -275,10 +276,35 @@ RangeGenerator<T> Sequence(T begin, T end, T step) {
     }
 }
 
+template <typename T, typename U>
+RangeGenerator<std::tuple<T, U>> Zip(RangeGenerator<T> t, RangeGenerator<U> u) {
+    auto itt = t.begin();
+    auto jtt = t.end();
+    auto itu = u.begin();
+    auto jtu = u.end();
+
+    while (itt != jtt && itu != jtu) {
+        co_yield std::make_tuple(*itt, *itu);
+        ++itt;
+        ++itu;
+    }
+}
+
 TEST_CASE("Sequence") {
+    int i = 0;
+    for (int x : Sequence(0, 100, 5)) {
+        REQUIRE(i == x);
+        i += 5;
+    }
+}
+
+TEST_CASE("Zip") {
+    int i = 0;
     int j = 0;
-    for (int i : Sequence(0, 100, 5)) {
-        REQUIRE(i == j);
-        j += 5;
+    for (auto [x, y] : Zip(Sequence(0, 100, 5), Sequence(0, 100, 6))) {
+        REQUIRE(i == x);
+        REQUIRE(j == y);
+        i += 5;
+        j += 6;
     }
 }
