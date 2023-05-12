@@ -6,10 +6,12 @@
 #include <iterator>
 #include <tuple>
 
-// Compiler transformation
-// generator natural_nums() {
+// NOLINTBEGIN
+
+// Compiler transformation for coroutine:
+// T F() {
 //     promise_type promise;
-//     generator return_object = promise.get_return_object();
+//     T return_object = promise.get_return_object();
 //     co_await promise.initial_suspend();
 //     try {
 //         /* coroutine body */
@@ -19,15 +21,29 @@
 //     co_await promise.final_suspend();
 // }
 
+// Compiler transformation for co_await <expr>:
+// auto&& awaiter = <expr>;
+// if (!awaiter.await_ready()) {
+//     Может вернуть результат:
+//     awaiter.await_suspend(handle_t::from_promise(promise));
+//
+//     Здесь может быть проверка результата:
+//     <suspend + yield if required>
+//
+//     В эту точку возвращаемся:
+//     <resume point>
+// }
+// Тоже может вернуть результат:
+// awaiter.await_resume();
+
+// co_yield <expr> -> co_await promise.yield_value(<expr>)
+
 // Это объект, который вернётся из корутины
 struct Resumable {
     // Интерфейс корутины требует наличие в нём этого подтипа
-    // NOLINTNEXTLINE
     struct promise_type {
-        // NOLINTNEXTLINE
         using coro_handle = std::coroutine_handle<promise_type>;
 
-        // NOLINTNEXTLINE
         auto get_return_object() {
             return Resumable(coro_handle::from_promise(*this));
         }
@@ -51,12 +67,12 @@ struct Resumable {
         // get_return_object()
         // initial_suspend()
         // final_suspend()
-        // return_void(), потому что в Foo() нет co_return some_value, то есть ничего не возвращаем
+        // return_void(), потому что в Foo() нет co_return <some_value>, то есть ничего не возвращаем
         // unhandled_exception()
 
         // Можно пропустить:
         // yield_value(), потому что в Foo() нет co_yield
-        // return_value(), потому что в Foo() нет co_return some_value
+        // return_value(), потому что в Foo() нет co_return <some_value>
     };
 
     explicit Resumable(promise_type::coro_handle handle)
@@ -308,3 +324,5 @@ TEST_CASE("Zip") {
         j += 6;
     }
 }
+
+// NOLINTEND
