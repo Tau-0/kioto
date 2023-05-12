@@ -15,11 +15,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(expected)
 
 FetchContent_Declare(
-        catch
+        Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
         GIT_TAG  v3.3.2
 )
-FetchContent_MakeAvailable(catch)
+FetchContent_MakeAvailable(Catch2)
 
 
 set(BENCHMARK_ENABLE_TESTING OFF)
