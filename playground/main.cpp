@@ -28,7 +28,7 @@
 // transform(<expr>) -> promise.await_transform(<expr>) if await_transform exists
 // transform(<expr>) -> <expr>.operator co_await() if operator exists and await_transform does not
 //
-// Compiler transformation for R = co_await <expr>:
+// Compiler transformation for auto r = co_await <expr>:
 // auto&& awaiter = transform(<expr>);
 // if (!awaiter.await_ready()) {
 //     Может вернуть результат:
@@ -44,8 +44,7 @@
 //     <resume point>
 // }
 // Тоже может вернуть результат:
-// auto&& r = awaiter.await_resume();
-// R = r;
+// r = awaiter.await_resume();
 
 // co_yield <expr> -> co_await promise.yield_value(<expr>)
 // co_return -> co_await promise.return_void()
