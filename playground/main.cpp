@@ -24,8 +24,12 @@
 //     co_await promise.final_suspend();
 // }
 
+// transform(<expr>) -> co_await <expr> for compiler-generated co_await (initial_suspend, co_yield <expr>, etc.)
+// transform(<expr>) -> promise.await_transform(<expr>) if await_transform exists
+// transform(<expr>) -> <expr>.operator co_await() if operator exists and await_transform does not
+//
 // Compiler transformation for co_await <expr>:
-// auto&& awaiter = <expr>;
+// auto&& awaiter = transform(<expr>);
 // if (!awaiter.await_ready()) {
 //     Может вернуть результат:
 //     awaiter.await_suspend(handle_t::from_promise(promise));
