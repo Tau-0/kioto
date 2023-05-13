@@ -4,9 +4,12 @@
 #include <coroutine>
 #include <exception>
 #include <iterator>
+#include <list>
 #include <tuple>
 
 // NOLINTBEGIN
+
+// https://youtu.be/mDajl0pIUjQ
 
 // Compiler transformation for coroutine:
 // T F() {
@@ -37,6 +40,8 @@
 // awaiter.await_resume();
 
 // co_yield <expr> -> co_await promise.yield_value(<expr>)
+// co_return -> co_await promise.return_void()
+// co_return <expr> -> co_await promise.return_value(<expr>)
 
 // Это объект, который вернётся из корутины
 struct Resumable {
@@ -67,12 +72,12 @@ struct Resumable {
         // get_return_object()
         // initial_suspend()
         // final_suspend()
-        // return_void(), потому что в Foo() нет co_return <some_value>, то есть ничего не возвращаем
+        // return_void(), потому что в Foo() нет co_return <expr>, то есть ничего не возвращаем
         // unhandled_exception()
 
         // Можно пропустить:
         // yield_value(), потому что в Foo() нет co_yield
-        // return_value(), потому что в Foo() нет co_return <some_value>
+        // return_value(), потому что в Foo() нет co_return <expr>
     };
 
     explicit Resumable(promise_type::coro_handle handle)
@@ -306,6 +311,123 @@ RangeGenerator<std::tuple<T, U>> Zip(RangeGenerator<T> t, RangeGenerator<U> u) {
     }
 }
 
+struct EventAwaiter {
+    using coro_handle = std::coroutine_handle<>;
+    struct awaiter {
+        awaiter(EventAwaiter& event)
+            : event_(event) {
+        }
+
+        bool await_ready() const noexcept {
+            return event_.IsSet();
+        }
+
+        void await_resume() noexcept {
+            event_.Reset();
+        }
+
+        void await_suspend(coro_handle coro) noexcept {
+            coro_ = coro;
+            event_.PushAwaiter(*this);
+        }
+
+        EventAwaiter& event_;
+        coro_handle coro_ = nullptr;
+    };
+
+    bool IsSet() const {
+        return set_;
+    }
+
+    void Reset() noexcept {
+        set_ = false;
+    }
+
+    void Set() noexcept {
+        set_ = true;
+        for (size_t i = list_.size(); i > 0; --i) {
+            list_.front().coro_.resume();
+            list_.pop_front();
+        }
+    }
+
+    void PushAwaiter(awaiter a) {
+        list_.push_back(a);
+    }
+
+    awaiter operator co_await() noexcept {
+        return awaiter(*this);
+    }
+
+    std::list<awaiter> list_;
+    bool set_ = false;
+};
+
+struct NonOwningResumable {
+    struct promise_type {
+        using coro_handle = std::coroutine_handle<promise_type>;
+
+        auto get_return_object() {
+            return NonOwningResumable(coro_handle::from_promise(*this));
+        }
+
+        auto initial_suspend() noexcept {
+            return std::suspend_never();
+        }
+
+        auto final_suspend() noexcept {
+            return std::suspend_never();
+        }
+
+        void return_void() {
+        }
+
+        void unhandled_exception() {
+            std::terminate();
+        }
+    };
+
+    NonOwningResumable(promise_type::coro_handle) {
+    }
+
+    NonOwningResumable(const NonOwningResumable& rhs) {
+    }
+
+    NonOwningResumable(NonOwningResumable&& rhs) {
+    }
+};
+
+EventAwaiter event;
+int g = 0;
+int c = 0;
+
+NonOwningResumable Consumer1() {
+    co_await event;
+    assert(g > 0);
+    ++c;
+}
+
+NonOwningResumable Consumer2() {
+    assert(g == 0);
+    co_await event;
+    assert(g == 42);
+    ++c;
+}
+
+NonOwningResumable Consumer3() {
+    assert(g == 0);
+    co_await event;
+    assert(g == 42);
+    co_await event;
+    assert(g == 84);
+    ++c;
+}
+
+void Producer() {
+    g += 42;
+    event.Set();
+}
+
 TEST_CASE("Sequence") {
     int i = 0;
     for (int x : Sequence(0, 100, 5)) {
@@ -323,6 +445,16 @@ TEST_CASE("Zip") {
         i += 5;
         j += 6;
     }
+}
+
+TEST_CASE("Producer-Consumer") {
+    Consumer1();
+    Consumer2();
+    Consumer3();
+    Producer();
+    Consumer1();
+    Producer();
+    REQUIRE(c == 4);
 }
 
 // NOLINTEND
