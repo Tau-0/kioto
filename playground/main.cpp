@@ -28,20 +28,24 @@
 // transform(<expr>) -> promise.await_transform(<expr>) if await_transform exists
 // transform(<expr>) -> <expr>.operator co_await() if operator exists and await_transform does not
 //
-// Compiler transformation for co_await <expr>:
+// Compiler transformation for R = co_await <expr>:
 // auto&& awaiter = transform(<expr>);
 // if (!awaiter.await_ready()) {
 //     Может вернуть результат:
-//     awaiter.await_suspend(handle_t::from_promise(promise));
-//
-//     Здесь может быть проверка результата:
-//     <suspend + yield if required>
+//     X = awaiter.await_suspend(handle_t::from_promise(promise));
+//     if (X is bool && X) || (X is void) {
+//         <yield_to_caller>
+//     }
+//     if (X is coroutine_handle) {
+//         <yield to X>
+//     }
 //
 //     В эту точку возвращаемся:
 //     <resume point>
 // }
 // Тоже может вернуть результат:
-// awaiter.await_resume();
+// auto&& r = awaiter.await_resume();
+// R = r;
 
 // co_yield <expr> -> co_await promise.yield_value(<expr>)
 // co_return -> co_await promise.return_void()
