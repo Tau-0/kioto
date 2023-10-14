@@ -1,0 +1,95 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install",
+			"tl_add_library"
+		],
+		"files" : 
+		[
+			"cmake-build-debug/_deps/tl_cmake-src/add-tl.cmake",
+			"cmake-build-debug/_deps/expected-src/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 1
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 19,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 31,
+				"parent" : 1
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 40,
+				"parent" : 1
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 43,
+				"parent" : 1
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "share/cmake/tl-expected",
+			"exportName" : "tl-targets",
+			"exportTargets" : 
+			[
+				{
+					"id" : "expected::@926979f0eaf3f7829b19",
+					"index" : 0
+				}
+			],
+			"paths" : 
+			[
+				"_deps/expected-build/CMakeFiles/Export/87ab3b79c05c3e5cf1b578a5d7faadcc/tl-expected-targets.cmake"
+			],
+			"type" : "export"
+		},
+		{
+			"backtrace" : 3,
+			"component" : "Unspecified",
+			"destination" : "share/cmake/tl-expected",
+			"paths" : 
+			[
+				"cmake-build-debug/_deps/expected-build/tl-expected-config-version.cmake",
+				"cmake-build-debug/_deps/expected-build/tl-expected-config.cmake"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 4,
+			"component" : "Unspecified",
+			"destination" : "include",
+			"paths" : 
+			[
+				{
+					"from" : "cmake-build-debug/_deps/expected-src/include",
+					"to" : "."
+				}
+			],
+			"type" : "directory"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "_deps/expected-build",
+		"source" : "cmake-build-debug/_deps/expected-src"
+	}
+}

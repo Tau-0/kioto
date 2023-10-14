@@ -32,8 +32,8 @@
 // auto&& awaiter = transform(<expr>);
 // if (!awaiter.await_ready()) {
 //     Может вернуть результат:
-//     X = awaiter.await_suspend(handle_t::from_promise(promise));
-//     if (X is bool && X) || (X is void) {
+//     X x = awaiter.await_suspend(handle_t::from_promise(promise));
+//     if (X is bool && x) || (X is void) {
 //         <yield_to_caller>
 //     }
 //     if (X is coroutine_handle) {

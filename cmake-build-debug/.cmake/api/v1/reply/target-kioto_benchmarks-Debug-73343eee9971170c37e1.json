@@ -1,0 +1,278 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "benchmarks/kioto_benchmarks"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"add_link_options",
+			"include",
+			"target_link_libraries",
+			"add_compile_options"
+		],
+		"files" : 
+		[
+			"benchmarks/CMakeLists.txt",
+			"cmake/CompileOptions.cmake",
+			"CMakeLists.txt",
+			"kioto/CMakeLists.txt",
+			"cmake-build-debug/_deps/benchmark-src/src/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 8,
+				"parent" : 0
+			},
+			{
+				"file" : 2
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 5,
+				"parent" : 2
+			},
+			{
+				"file" : 1,
+				"parent" : 3
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 9,
+				"parent" : 4
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 9,
+				"parent" : 0
+			},
+			{
+				"file" : 3
+			},
+			{
+				"command" : 3,
+				"file" : 3,
+				"line" : 28,
+				"parent" : 7
+			},
+			{
+				"file" : 4
+			},
+			{
+				"command" : 3,
+				"file" : 4,
+				"line" : 75,
+				"parent" : 9
+			},
+			{
+				"command" : 3,
+				"file" : 4,
+				"line" : 48,
+				"parent" : 9
+			},
+			{
+				"command" : 4,
+				"file" : 1,
+				"line" : 8,
+				"parent" : 4
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g -fcolor-diagnostics"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-Wall"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-Wextra"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-Wpedantic"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-fno-omit-frame-pointer"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-stdlib=libc++"
+				},
+				{
+					"backtrace" : 12,
+					"fragment" : "-pthread"
+				},
+				{
+					"fragment" : "-std=c++20"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 6,
+					"define" : "BENCHMARK_STATIC_DEFINE"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 6,
+					"path" : "/home/tt/Dropbox/Diploma/kioto"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "/home/tt/Dropbox/Diploma/kioto/cmake-build-debug/_deps/expected-src/include"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "/home/tt/Dropbox/Diploma/kioto/cmake-build-debug/_deps/fmt-src/include"
+				},
+				{
+					"backtrace" : 6,
+					"path" : "/home/tt/Dropbox/Diploma/kioto/cmake-build-debug/_deps/benchmark-src/include"
+				}
+			],
+			"language" : "CXX",
+			"languageStandard" : 
+			{
+				"backtraces" : 
+				[
+					6
+				],
+				"standard" : "20"
+			},
+			"sourceIndexes" : 
+			[
+				0
+			]
+		}
+	],
+	"dependencies" : 
+	[
+		{
+			"backtrace" : 6,
+			"id" : "kioto::@fd0d95fcb44429bb4d56"
+		},
+		{
+			"backtrace" : 6,
+			"id" : "fmt::@976f4f0bee90b99ecdb6"
+		},
+		{
+			"backtrace" : 6,
+			"id" : "benchmark::@2fa91c1ea4e05cbc4511"
+		},
+		{
+			"backtrace" : 6,
+			"id" : "benchmark_main::@2fa91c1ea4e05cbc4511"
+		}
+	],
+	"id" : "kioto_benchmarks::@099d4941661e36fe2606",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-g",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "-stdlib=libc++",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 5,
+				"fragment" : "-pthread",
+				"role" : "flags"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "kioto/libkioto.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 6,
+				"fragment" : "_deps/benchmark-build/src/libbenchmark_main.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 8,
+				"fragment" : "-lpthread",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 8,
+				"fragment" : "_deps/fmt-build/libfmtd.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 10,
+				"fragment" : "_deps/benchmark-build/src/libbenchmark.a",
+				"role" : "libraries"
+			},
+			{
+				"backtrace" : 11,
+				"fragment" : "-lrt",
+				"role" : "libraries"
+			}
+		],
+		"language" : "CXX"
+	},
+	"name" : "kioto_benchmarks",
+	"nameOnDisk" : "kioto_benchmarks",
+	"paths" : 
+	{
+		"build" : "benchmarks",
+		"source" : "benchmarks"
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "benchmarks/main.cpp",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "EXECUTABLE"
+}
