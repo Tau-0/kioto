@@ -1,2 +1,2 @@
 # kioto
-A concurrency library for C++20.
+A concurrency library for Zig.
