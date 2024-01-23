@@ -10,5 +10,5 @@ test "basic add functionality" {
 }
 
 pub fn main() void {
-    std.debug.print("Hello, {s}!\n", .{"World"});
+    std.debug.print("Hello, {s}, again!\n", .{"World"});
 }
