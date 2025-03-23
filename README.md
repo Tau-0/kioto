@@ -1,2 +1,2 @@
 # kioto
-A concurrency library for Zig.
+Concurrency library for Zig.
