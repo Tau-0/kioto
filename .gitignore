@@ -6,7 +6,7 @@ _deps
 .idea/
 .vscode/
 zig-out/
-zig-cache/
+.zig-cache/
 *.a
 *.app
 *.dll
