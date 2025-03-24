@@ -1,6 +1,10 @@
 const std = @import("std");
-const queue = @import("blocking_queue.zig");
-const wg = @import("wait_group.zig");
+const queue = @import("../threads/blocking_queue.zig");
+const wg = @import("../threads/wait_group.zig");
+
+const debug = std.debug;
+const assert = debug.assert;
+const testing = std.testing;
 
 const Task = *const fn () void;
 
@@ -9,33 +13,27 @@ threadlocal var current_pool: ?*ThreadPool = null;
 pub const ThreadPool = struct {
     workers: std.ArrayList(std.Thread) = undefined,
     tasks: queue.BlockingQueue(Task) = undefined,
-    wait_group: wg.WaitGroup = .{},
+    done: bool = false,
 
-    pub fn init(self: *ThreadPool, workers_count: usize, alloc: std.mem.Allocator) void {
-        self.workers = std.ArrayList(std.Thread).initCapacity(alloc, workers_count) catch unreachable;
-        self.tasks = queue.BlockingQueue(Task).init(alloc);
+    pub fn init(self: *ThreadPool, workers_count: usize, allocator: std.mem.Allocator) !void {
+        self.workers = try std.ArrayList(std.Thread).initCapacity(allocator, workers_count);
+        self.tasks = queue.BlockingQueue(Task).init(allocator);
     }
 
     pub fn deinit(self: *ThreadPool) void {
-        self.workers.deinit();
+        assert(self.done);
         self.tasks.deinit();
+        self.workers.deinit();
     }
 
-    pub fn start(self: *ThreadPool) void {
+    pub fn start(self: *ThreadPool) !void {
         for (0..self.workers.capacity) |_| {
-            self.workers.append(std.Thread.spawn(.{}, workerRoutine, .{self}) catch unreachable) catch unreachable;
+            self.workers.addOneAssumeCapacity().* = try std.Thread.spawn(.{}, workerRoutine, .{self});
         }
     }
 
     pub fn submit(self: *ThreadPool, task: Task) void {
-        self.wait_group.add(1);
-        if (!self.tasks.put(task)) {
-            self.wait_group.done();
-        }
-    }
-
-    pub fn waitIdle(self: *ThreadPool) void {
-        self.wait_group.wait();
+        self.tasks.put(task);
     }
 
     pub fn stop(self: *ThreadPool) void {
@@ -43,41 +41,48 @@ pub const ThreadPool = struct {
         for (self.workers.items) |w| {
             w.join();
         }
+        self.done = true;
     }
 
     pub fn currentPool() ?*ThreadPool {
         return current_pool;
     }
 
+    pub fn here(self: *const ThreadPool) bool {
+        return current_pool == self;
+    }
+
     fn workerRoutine(self: *ThreadPool) void {
         current_pool = self;
         while (true) {
-            const task = self.tasks.take() orelse return;
+            const task: Task = self.tasks.take() orelse return;
             task();
-            self.wait_group.done();
         }
     }
 };
 
-fn testWorker() void {
+fn testWorker(waiter: *wg.WaitGroup) void {
     std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
-    std.time.sleep(5000);
+    std.Thread.sleep(2 * std.time.ns_per_s);
+    waiter.done();
 }
 
 test "basic" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const alloc = gpa.allocator();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(gpa.deinit() == .ok) catch unreachable;
+    const allocator = gpa.allocator();
 
     var pool: ThreadPool = .{};
-    pool.init(4, alloc);
+    try pool.init(4, allocator);
+    try pool.start();
     defer pool.deinit();
 
+    var waiter: wg.WaitGroup = .{};
+    waiter.add(4);
     pool.submit(testWorker);
     pool.submit(testWorker);
     pool.submit(testWorker);
     pool.submit(testWorker);
-    pool.start();
-    pool.waitIdle();
+    waiter.wait();
     pool.stop();
 }

@@ -88,7 +88,7 @@ fn consumer(q: *BlockingQueue(u64)) void {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer testing.expect(gpa.deinit() == .ok);
+    defer testing.expect(gpa.deinit() == .ok) catch unreachable;
 
     const alloc = gpa.allocator();
     var queue = BlockingQueue(u64).init(alloc);
@@ -97,7 +97,7 @@ test "basic" {
     var prod = try std.Thread.spawn(.{}, producer, .{&queue});
     var cons = try std.Thread.spawn(.{}, consumer, .{&queue});
 
-    std.time.sleep(1_000_000_000);
+    std.time.sleep(1 * std.time.ns_per_s);
     queue.close();
 
     prod.join();
