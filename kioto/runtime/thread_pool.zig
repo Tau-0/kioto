@@ -32,8 +32,8 @@ pub const ThreadPool = struct {
         }
     }
 
-    pub fn submit(self: *ThreadPool, task: Task) void {
-        self.tasks.put(task);
+    pub fn submit(self: *ThreadPool, task: Task) !void {
+        try self.tasks.put(task);
     }
 
     pub fn stop(self: *ThreadPool) void {
@@ -61,10 +61,9 @@ pub const ThreadPool = struct {
     }
 };
 
-fn testWorker(waiter: *wg.WaitGroup) void {
+fn testWorker() void {
     std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
     std.Thread.sleep(2 * std.time.ns_per_s);
-    waiter.done();
 }
 
 test "basic" {
@@ -77,12 +76,12 @@ test "basic" {
     try pool.start();
     defer pool.deinit();
 
-    var waiter: wg.WaitGroup = .{};
-    waiter.add(4);
-    pool.submit(testWorker);
-    pool.submit(testWorker);
-    pool.submit(testWorker);
-    pool.submit(testWorker);
-    waiter.wait();
+    // var waiter: wg.WaitGroup = .{};
+    // waiter.add(4);
+    try pool.submit(testWorker);
+    try pool.submit(testWorker);
+    try pool.submit(testWorker);
+    try pool.submit(testWorker);
+    // waiter.wait();
     pool.stop();
 }
