@@ -1,7 +1,4 @@
 const std = @import("std");
-const debug = std.debug;
-const assert = debug.assert;
-const testing = std.testing;
 
 pub const WaitGroup = struct {
     mutex: std.Thread.Mutex = .{},
@@ -34,6 +31,10 @@ pub const WaitGroup = struct {
         self.waiters -= 1;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+const testing = std.testing;
 
 fn threadFunc(wg: *WaitGroup) void {
     std.Thread.sleep(1_000_000_000);

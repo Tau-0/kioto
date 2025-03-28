@@ -1,7 +1,4 @@
 const std = @import("std");
-const debug = std.debug;
-const assert = debug.assert;
-const testing = std.testing;
 
 // Unbounded blocking MPMC queue
 pub fn BlockingQueue(comptime T: type) type {
@@ -23,7 +20,7 @@ pub fn BlockingQueue(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            assert(self.isEmpty());
+            std.debug.assert(self.isEmpty());
         }
 
         pub fn put(self: *Self, value: T) !void {
@@ -53,7 +50,7 @@ pub fn BlockingQueue(comptime T: type) type {
         }
 
         fn takeLocked(self: *Self) T {
-            debug.assert(!self.isEmpty());
+            std.debug.assert(!self.isEmpty());
             const node: *Node = self.buffer.popFirst().?;
             const value: T = node.data;
             self.allocator.destroy(node);
@@ -75,16 +72,18 @@ pub fn BlockingQueue(comptime T: type) type {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const testing = std.testing;
+
 fn producer(q: *BlockingQueue(u64)) void {
     for (0..10) |i| {
-        q.put(i) catch |err| debug.print("Error: {}\n", .{err});
-        debug.print("Produced: {}\n", .{i});
+        q.put(i) catch |err| std.debug.print("Error: {}\n", .{err});
+        std.debug.print("Produced: {}\n", .{i});
     }
 }
 
 fn consumer(q: *BlockingQueue(u64)) void {
     while (q.take()) |elem| {
-        debug.print("Consumed: {}\n", .{elem});
+        std.debug.print("Consumed: {}\n", .{elem});
     }
 }
 

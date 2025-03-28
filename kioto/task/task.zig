@@ -1,6 +1,8 @@
 const std = @import("std");
 
-// Interface
+// Interface, heir of type T should implement:
+// - fn runnable(self: *T) Runnable
+// - fn run(self: *T) void
 pub const Runnable = struct {
     pub const Task = *const fn (ptr: *anyopaque) void;
 
@@ -56,10 +58,6 @@ const ClosureB = struct {
 };
 
 test "basic" {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    // const allocator = gpa.allocator();
-    // defer _ = gpa.detectLeaks();
-
     var x: u8 = 10;
     var y: u8 = 2;
     var c1: ClosureA = .{ .data = 2 };
