@@ -73,6 +73,8 @@ pub fn BlockingQueue(comptime T: type) type {
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 fn producer(q: *BlockingQueue(u64)) void {
     for (0..10) |i| {
         q.put(i) catch |err| debug.print("Error: {}\n", .{err});

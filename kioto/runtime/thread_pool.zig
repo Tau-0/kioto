@@ -1,27 +1,25 @@
 const std = @import("std");
+
 const queue = @import("../threads/blocking_queue.zig");
+const task = @import("../task/task.zig");
 const wg = @import("../threads/wait_group.zig");
 
-const debug = std.debug;
-const assert = debug.assert;
-const testing = std.testing;
-
-const Task = *const fn () void;
+const Runnable = task.Runnable;
 
 threadlocal var current_pool: ?*ThreadPool = null;
 
 pub const ThreadPool = struct {
     workers: std.ArrayList(std.Thread) = undefined,
-    tasks: queue.BlockingQueue(Task) = undefined,
+    tasks: queue.BlockingQueue(Runnable) = undefined,
     done: bool = false,
 
     pub fn init(self: *ThreadPool, workers_count: usize, allocator: std.mem.Allocator) !void {
         self.workers = try std.ArrayList(std.Thread).initCapacity(allocator, workers_count);
-        self.tasks = queue.BlockingQueue(Task).init(allocator);
+        self.tasks = queue.BlockingQueue(Runnable).init(allocator);
     }
 
     pub fn deinit(self: *ThreadPool) void {
-        assert(self.done);
+        std.debug.assert(self.done);
         self.tasks.deinit();
         self.workers.deinit();
     }
@@ -32,8 +30,8 @@ pub const ThreadPool = struct {
         }
     }
 
-    pub fn submit(self: *ThreadPool, task: Task) !void {
-        try self.tasks.put(task);
+    pub fn submit(self: *ThreadPool, runnable: Runnable) !void {
+        try self.tasks.put(runnable);
     }
 
     pub fn stop(self: *ThreadPool) void {
@@ -55,16 +53,29 @@ pub const ThreadPool = struct {
     fn workerRoutine(self: *ThreadPool) void {
         current_pool = self;
         while (true) {
-            const task: Task = self.tasks.take() orelse return;
-            task();
+            const runnable: Runnable = self.tasks.take() orelse return;
+            runnable.run();
         }
     }
 };
 
-fn testWorker() void {
-    std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
-    std.Thread.sleep(2 * std.time.ns_per_s);
-}
+////////////////////////////////////////////////////////////////////////////////
+
+const testing = std.testing;
+
+const TestRunnable = struct {
+    waiter: *wg.WaitGroup,
+
+    pub fn runnable(self: *TestRunnable) Runnable {
+        return Runnable.init(self);
+    }
+
+    pub fn run(self: *TestRunnable) void {
+        std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
+        std.Thread.sleep(2 * std.time.ns_per_s);
+        self.waiter.done();
+    }
+};
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
@@ -76,12 +87,16 @@ test "basic" {
     try pool.start();
     defer pool.deinit();
 
-    // var waiter: wg.WaitGroup = .{};
-    // waiter.add(4);
-    try pool.submit(testWorker);
-    try pool.submit(testWorker);
-    try pool.submit(testWorker);
-    try pool.submit(testWorker);
-    // waiter.wait();
+    var waiter: wg.WaitGroup = .{};
+    var test_task: TestRunnable = .{ .waiter = &waiter };
+    const runnable: Runnable = test_task.runnable();
+    waiter.add(4);
+    try pool.submit(runnable);
+    try pool.submit(runnable);
+    try pool.submit(runnable);
+    try pool.submit(runnable);
+    waiter.wait();
     pool.stop();
+
+    try testing.expect(waiter.counter == 0);
 }
