@@ -27,12 +27,11 @@ test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     const allocator = gpa.allocator();
     var stack: Stack = try Stack.init(pages, allocator);
+    defer testing.expect(!gpa.detectLeaks()) catch unreachable;
+    defer stack.deinit();
 
     try testing.expect(stack.memory.len == pages * page_size);
     try testing.expect(@typeInfo(@TypeOf(stack.memory.ptr)).pointer.alignment == page_size);
     // No gap (correct alignment)
     try testing.expect(&stack.memory[1] - &stack.memory[0] == 1);
-
-    stack.deinit();
-    try testing.expect(!gpa.detectLeaks());
 }
