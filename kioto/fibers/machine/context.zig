@@ -1,10 +1,12 @@
 const builtin = @import("builtin");
+const Stack = @import("stack.zig").Stack;
 
-extern fn switchStack(from_stack: *u64, to_stack: *u64) void;
+extern fn switchStack(current_stack: *anyopaque, target_stack: *anyopaque) void;
 
-const StackContext = switch (builtin.cpu.arch) {
+const SwitchContext = switch (builtin.cpu.arch) {
     .x86_64 => switch (builtin.os.tag) {
         .linux => SystemVAMD64ABI,
+        else => @compileError("Unsupported OS"),
     },
     else => @compileError("Unsupported platform"),
 };
@@ -36,16 +38,12 @@ const SystemVAMD64ABI = struct {
     }
 };
 
-pub const ExecutionContext = struct {
-    rsp: *?usize = null,
+pub const Context = struct {
+    rsp: *anyopaque = undefined,
 
-    pub fn init(stack: *Stack, trampoline: *Trampoline) void {}
+    pub fn init(stack: *Stack, trampoline: *Trampoline) Context {}
 
-    pub fn switchTo(self: *ExecutionContext, target: *ExecutionContext) void {
+    pub fn switchTo(self: *Context, target: *Context) void {
         switchStack(&self.rsp, &target.rsp);
-    }
-
-    pub fn stackPointer(self: *ExecutionContext) *?usize {
-        return self.rsp;
     }
 };
