@@ -17,5 +17,7 @@ pub const Coroutine = struct {
 
     pub fn suspendCoro() void {}
 
-    pub fn isCompleted(self: *Coroutine) bool {}
+    pub fn isCompleted(self: *const Coroutine) bool {
+        return self.is_completed;
+    }
 };

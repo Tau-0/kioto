@@ -1,8 +1,6 @@
 const builtin = @import("builtin");
 const Stack = @import("stack.zig").Stack;
 
-extern fn switchStack(current_stack: *anyopaque, target_stack: *anyopaque) void;
-
 const SwitchContext = switch (builtin.cpu.arch) {
     .x86_64 => switch (builtin.os.tag) {
         .linux => SystemVAMD64ABI,
@@ -11,28 +9,52 @@ const SwitchContext = switch (builtin.cpu.arch) {
     else => @compileError("Unsupported platform"),
 };
 
+extern fn switchContext(current_context: **anyopaque, target_context: **anyopaque) void;
+extern fn setupContext(stack_top: *anyopaque, trampoline: *anyopaque) *anyopaque;
+
+// The calling convention requires a top of the stack (%rsp) to be aligned by 16 before a call and after a ret
 const SystemVAMD64ABI = struct {
     comptime {
         asm (
-            \\.global switchStack
-            \\switchStack:
-            \\  pushq %rbp
-            \\  pushq %rbx
-            \\  pushq %r12
-            \\  pushq %r13
-            \\  pushq %r14
-            \\  pushq %r15
+            \\.type switchContext, @function
+            \\.type setupContext, @function
+            \\.global switchContext
+            \\.global setupContext
             \\
-            \\  movq %rsp, (%rdi)
-            \\  movq (%rsi), %rsp
+            \\switchContext:
+            \\  pushq   %rbp
+            \\  pushq   %rbx
+            \\  pushq   %r12
+            \\  pushq   %r13
+            \\  pushq   %r14
+            \\  pushq   %r15
             \\
-            \\  popq %r15
-            \\  popq %r14
-            \\  popq %r13
-            \\  popq %r12
-            \\  popq %rbx
-            \\  popq %rbp
+            \\  movq    %rsp, (%rdi)
+            \\  movq    (%rsi), %rsp
             \\
+            \\  popq    %r15
+            \\  popq    %r14
+            \\  popq    %r13
+            \\  popq    %r12
+            \\  popq    %rbx
+            \\  popq    %rbp
+            \\
+            \\  retq
+            \\
+            \\setupContext:
+            \\  movq    %rsp, %rcx
+            \\  movq    %rdi, %rsp
+            \\  andq    $0xfffffffffffffff0, $rsp
+            \\  addq    $8, %rsp
+            \\  pushq   %rsi
+            \\  pushq   $0
+            \\  pushq   $0
+            \\  pushq   $0
+            \\  pushq   $0
+            \\  pushq   $0
+            \\  pushq   $0
+            \\  movq    %rsp, %rax
+            \\  movq    %rcx, %rsp
             \\  retq
         );
     }
@@ -41,9 +63,13 @@ const SystemVAMD64ABI = struct {
 pub const Context = struct {
     rsp: *anyopaque = undefined,
 
-    pub fn init(stack: *Stack, trampoline: *Trampoline) Context {}
+    pub fn init(stack: *Stack, trampoline: *anyopaque) Context {
+        return .{
+            .rsp = setupContext(stack.memory.ptr + stack.memory.len - 1, trampoline),
+        };
+    }
 
     pub fn switchTo(self: *Context, target: *Context) void {
-        switchStack(&self.rsp, &target.rsp);
+        switchContext(&self.rsp, &target.rsp);
     }
 };
