@@ -60,14 +60,14 @@ const TaskB = struct {
 test "basic" {
     var x: u8 = 10;
     var y: u8 = 2;
-    var c1: TaskA = .{ .data = 2 };
-    var c2: TaskB = .{ .data = &x };
-    var c3: TaskB = .{ .data = &y };
+    var t1: TaskA = .{ .data = 2 };
+    var t2: TaskB = .{ .data = &x };
+    var t3: TaskB = .{ .data = &y };
 
     var tasks: [3]Runnable = undefined;
-    tasks[0] = c1.runnable();
-    tasks[1] = c2.runnable();
-    tasks[2] = c3.runnable();
+    tasks[0] = t1.runnable();
+    tasks[1] = t2.runnable();
+    tasks[2] = t3.runnable();
 
     for (tasks) |t| {
         t.run();
@@ -75,5 +75,5 @@ test "basic" {
 
     try std.testing.expect(x == 11);
     try std.testing.expect(y == 3);
-    try std.testing.expect(c1.data == 2);
+    try std.testing.expect(t1.data == 2);
 }
