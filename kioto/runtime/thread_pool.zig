@@ -8,14 +8,17 @@ const Runnable = task.Runnable;
 
 threadlocal var current_pool: ?*ThreadPool = null;
 
+// TODO: waitIdle
 pub const ThreadPool = struct {
     workers: std.ArrayList(std.Thread) = undefined,
     tasks: queue.BlockingQueue(Runnable) = undefined,
     done: bool = false,
 
-    pub fn init(self: *ThreadPool, workers_count: usize, allocator: std.mem.Allocator) !void {
-        self.workers = try std.ArrayList(std.Thread).initCapacity(allocator, workers_count);
-        self.tasks = queue.BlockingQueue(Runnable).init(allocator);
+    pub fn init(workers_count: usize, allocator: std.mem.Allocator) !ThreadPool {
+        return .{
+            .workers = try std.ArrayList(std.Thread).initCapacity(allocator, workers_count),
+            .tasks = queue.BlockingQueue(Runnable).init(allocator),
+        };
     }
 
     pub fn deinit(self: *ThreadPool) void {
@@ -82,8 +85,7 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch unreachable;
     const allocator = gpa.allocator();
 
-    var pool: ThreadPool = .{};
-    try pool.init(4, allocator);
+    var pool: ThreadPool = try ThreadPool.init(4, allocator);
     try pool.start();
     defer pool.deinit();
 
