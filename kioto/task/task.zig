@@ -32,37 +32,37 @@ pub const Runnable = struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ClosureA = struct {
+const TaskA = struct {
     data: u64,
 
-    pub fn runnable(self: *ClosureA) Runnable {
+    pub fn runnable(self: *TaskA) Runnable {
         return Runnable.init(self);
     }
 
-    pub fn run(self: *ClosureA) void {
-        std.debug.print("Closure A: {}\n", .{self.data});
+    pub fn run(self: *TaskA) void {
+        std.debug.print("Task A: {}\n", .{self.data});
     }
 };
 
-const ClosureB = struct {
+const TaskB = struct {
     data: *u8,
 
-    pub fn runnable(self: *ClosureB) Runnable {
+    pub fn runnable(self: *TaskB) Runnable {
         return Runnable.init(self);
     }
 
-    pub fn run(self: *ClosureB) void {
+    pub fn run(self: *TaskB) void {
         self.data.* += 1;
-        std.debug.print("Closure B: {}\n", .{self.data.*});
+        std.debug.print("Task B: {}\n", .{self.data.*});
     }
 };
 
 test "basic" {
     var x: u8 = 10;
     var y: u8 = 2;
-    var c1: ClosureA = .{ .data = 2 };
-    var c2: ClosureB = .{ .data = &x };
-    var c3: ClosureB = .{ .data = &y };
+    var c1: TaskA = .{ .data = 2 };
+    var c2: TaskB = .{ .data = &x };
+    var c3: TaskB = .{ .data = &y };
 
     var tasks: [3]Runnable = undefined;
     tasks[0] = c1.runnable();

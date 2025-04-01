@@ -83,11 +83,13 @@ const testing = std.testing;
 var context1: Context = undefined;
 var context2: Context = undefined;
 
-fn testTrampoline() void {
+fn testTrampoline() noreturn {
     std.debug.print("1\n", .{});
     context1.switchTo(&context2);
     std.debug.print("3\n", .{});
     context1.switchTo(&context2);
+
+    unreachable;
 }
 
 test "basic" {
@@ -97,7 +99,7 @@ test "basic" {
     defer testing.expect(!gpa.detectLeaks()) catch unreachable;
     defer stack.deinit();
 
-    context1 = Context.init(&stack, @as(*const anyopaque, &testTrampoline));
+    context1 = Context.init(&stack, @as(*const anyopaque, testTrampoline));
 
     context2.switchTo(&context1);
     std.debug.print("2\n", .{});

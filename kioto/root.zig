@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("fibers/coroutine.zig");
     _ = @import("fibers/machine/context.zig");
     _ = @import("fibers/machine/stack.zig");
     _ = @import("runtime/thread_pool.zig");
