@@ -1,6 +1,6 @@
 const std = @import("std");
 
-// Interface, heir of type T should implement:
+// Interface, any implementation of Runnable should implement (type T here):
 // - fn runnable(self: *T) Runnable
 // - fn run(self: *T) void
 pub const Runnable = struct {
