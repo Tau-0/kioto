@@ -86,14 +86,21 @@ var context2: Context = undefined;
 fn testTrampoline() void {
     std.debug.print("1\n", .{});
     context1.switchTo(&context2);
+    std.debug.print("3\n", .{});
+    context1.switchTo(&context2);
 }
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     const allocator = gpa.allocator();
     var stack: Stack = try Stack.init(2, allocator);
+    defer testing.expect(!gpa.detectLeaks()) catch unreachable;
+    defer stack.deinit();
 
     context1 = Context.init(&stack, @as(*const anyopaque, &testTrampoline));
+
     context2.switchTo(&context1);
     std.debug.print("2\n", .{});
+    context2.switchTo(&context1);
+    std.debug.print("4\n", .{});
 }
