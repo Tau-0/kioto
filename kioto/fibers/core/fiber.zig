@@ -7,7 +7,7 @@ const ThreadPool = @import("../../runtime/thread_pool.zig").ThreadPool;
 
 threadlocal var current_fiber: ?*Fiber = null;
 
-const Fiber = struct {
+pub const Fiber = struct {
     coro: Coroutine = undefined,
     scheduler: *ThreadPool = undefined,
 
@@ -99,7 +99,7 @@ test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     const allocator = gpa.allocator();
 
-    var tp: ThreadPool = try ThreadPool.init(4, allocator);
+    var tp: ThreadPool = try ThreadPool.init(1, allocator);
     try tp.start();
     defer tp.deinit();
     defer tp.stop();
@@ -112,11 +112,11 @@ test "basic" {
     var t2: TaskB = .{ .wg = &wg };
     var fiber2 = try Fiber.init(&tp, t2.runnable(), allocator);
 
-    defer testing.expect(!gpa.detectLeaks()) catch unreachable;
+    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
     defer fiber1.deinit();
     defer fiber2.deinit();
-    defer testing.expect(fiber1.isCompleted()) catch unreachable;
-    defer testing.expect(fiber2.isCompleted()) catch unreachable;
+    defer testing.expect(fiber1.isCompleted()) catch @panic("TEST FAIL");
+    defer testing.expect(fiber2.isCompleted()) catch @panic("TEST FAIL");
 
     wg.add(2);
     try fiber1.submit();
