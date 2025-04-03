@@ -63,7 +63,7 @@ const Fiber = struct {
 
 const testing = std.testing;
 
-const WaitGroup = @import("../threads/wait_group.zig").WaitGroup;
+const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TaskA = struct {
     wg: *WaitGroup,
