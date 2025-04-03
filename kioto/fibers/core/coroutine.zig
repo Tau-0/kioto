@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Context = @import("machine/context.zig").Context;
 const Stack = @import("machine/stack.zig").Stack;
-const Runnable = @import("../task/task.zig").Runnable;
+const Runnable = @import("../../task/task.zig").Runnable;
 
 threadlocal var current_coroutine: ?*Coroutine = null;
 
@@ -37,6 +37,10 @@ pub const Coroutine = struct {
         std.debug.assert(current_coroutine != null);
         const coro: *Coroutine = current_coroutine.?;
         coro.self_context.switchTo(&coro.caller_context);
+    }
+
+    pub fn current() ?*Coroutine {
+        return current_coroutine;
     }
 
     pub fn isCompleted(self: *const Coroutine) bool {

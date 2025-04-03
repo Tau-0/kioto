@@ -2,8 +2,8 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Coroutine = @import("coroutine.zig").Coroutine;
-const Runnable = @import("../task/task.zig").Runnable;
-const ThreadPool = @import("../runtime/thread_pool.zig").ThreadPool;
+const Runnable = @import("../../task/task.zig").Runnable;
+const ThreadPool = @import("../../runtime/thread_pool.zig").ThreadPool;
 
 threadlocal var current_fiber: ?*Fiber = null;
 
