@@ -1,28 +1,29 @@
 const std = @import("std");
 
-const queue = @import("../threads/blocking_queue.zig");
-const task = @import("../task/task.zig");
-const wg = @import("../threads/wait_group.zig");
+const assert = std.debug.assert;
 
-const Runnable = task.Runnable;
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+const BlockingQueue = @import("../threads/blocking_queue.zig").BlockingQueue;
+const Runnable = @import("../task/task.zig").Runnable;
+const Thread = std.Thread;
 
 threadlocal var current_pool: ?*ThreadPool = null;
 
-// TODO: waitIdle
 pub const ThreadPool = struct {
-    workers: std.ArrayList(std.Thread) = undefined,
-    tasks: queue.BlockingQueue(Runnable) = undefined,
+    workers: ArrayList(Thread) = undefined,
+    tasks: BlockingQueue(Runnable) = undefined,
     done: bool = false,
 
-    pub fn init(workers_count: usize, allocator: std.mem.Allocator) !ThreadPool {
+    pub fn init(workers_count: usize, allocator: Allocator) !ThreadPool {
         return .{
-            .workers = try std.ArrayList(std.Thread).initCapacity(allocator, workers_count),
-            .tasks = queue.BlockingQueue(Runnable).init(allocator),
+            .workers = try ArrayList(Thread).initCapacity(allocator, workers_count),
+            .tasks = BlockingQueue(Runnable).init(allocator),
         };
     }
 
     pub fn deinit(self: *ThreadPool) void {
-        std.debug.assert(self.done);
+        assert(self.done);
         self.tasks.deinit();
         self.workers.deinit();
     }
@@ -66,8 +67,10 @@ pub const ThreadPool = struct {
 
 const testing = std.testing;
 
+const WaitGroup = @import("../threads/wait_group.zig").WaitGroup;
+
 const TestRunnable = struct {
-    waiter: *wg.WaitGroup,
+    wg: *WaitGroup,
 
     pub fn runnable(self: *TestRunnable) Runnable {
         return Runnable.init(self);
@@ -76,7 +79,7 @@ const TestRunnable = struct {
     pub fn run(self: *TestRunnable) void {
         std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
         std.Thread.sleep(2 * std.time.ns_per_s);
-        self.waiter.done();
+        self.wg.done();
     }
 };
 
@@ -89,16 +92,16 @@ test "basic" {
     try pool.start();
     defer pool.deinit();
 
-    var waiter: wg.WaitGroup = .{};
-    var test_task: TestRunnable = .{ .waiter = &waiter };
+    var wg: WaitGroup = .{};
+    var test_task: TestRunnable = .{ .wg = &wg };
     const runnable: Runnable = test_task.runnable();
-    waiter.add(4);
+    wg.add(4);
     try pool.submit(runnable);
     try pool.submit(runnable);
     try pool.submit(runnable);
     try pool.submit(runnable);
-    waiter.wait();
+    wg.wait();
     pool.stop();
 
-    try testing.expect(waiter.counter == 0);
+    try testing.expect(wg.counter == 0);
 }

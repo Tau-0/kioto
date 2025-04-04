@@ -14,7 +14,7 @@ pub const Backoff = struct {
         } else {
             std.Thread.yield() catch @panic("CAN NOT YIELD");
         }
-        self.step += 1;
+        self.step +|= 1;
     }
 
     pub fn isCompleted(self: *const Backoff) bool {
@@ -24,18 +24,11 @@ pub const Backoff = struct {
     inline fn stepLimit(self: *const Backoff) usize {
         return @as(usize, 1) << self.step;
     }
+
+    inline fn pause() void {
+        asm volatile ("pause" ::: "memory");
+    }
 };
-
-comptime {
-    asm (
-        \\.global pause;
-        \\.type pause, @function;
-        \\pause:
-        \\ pause
-    );
-}
-
-extern fn pause() void;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,8 +36,8 @@ const testing = std.testing;
 
 test "basic" {
     var backoff: Backoff = .{};
-    for (0..Backoff.yield_limit + 1) |i| {
-        const expected_backoff = std.math.powi(usize, 2, i) catch @panic("TEST FAIL");
+    for (0..100) |i| {
+        const expected_backoff = std.math.pow(usize, 2, @min(i, 63));
         testing.expect(backoff.stepLimit() == expected_backoff) catch @panic("TEST FAIL");
         backoff.spin();
     }

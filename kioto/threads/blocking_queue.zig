@@ -1,26 +1,33 @@
 const std = @import("std");
 
+const assert = std.debug.assert;
+
+const Allocator = std.mem.Allocator;
+const Condition = std.Thread.Condition;
+const DoublyLinkedList = std.DoublyLinkedList;
+const Mutex = std.Thread.Mutex;
+
 // Unbounded blocking MPMC queue
 pub fn BlockingQueue(comptime T: type) type {
     return struct {
-        const List = std.DoublyLinkedList(T);
+        const List = DoublyLinkedList(T);
         pub const Self = @This();
         pub const Node = List.Node;
 
         buffer: List = .{},
-        mutex: std.Thread.Mutex = .{},
-        has_values: std.Thread.Condition = .{},
+        mutex: Mutex = .{},
+        has_values: Condition = .{},
         is_open: bool = true,
-        allocator: std.mem.Allocator = undefined,
+        allocator: Allocator = undefined,
 
-        pub fn init(allocator: std.mem.Allocator) Self {
+        pub fn init(allocator: Allocator) Self {
             return .{
                 .allocator = allocator,
             };
         }
 
         pub fn deinit(self: *Self) void {
-            std.debug.assert(self.isEmpty());
+            assert(self.isEmpty());
         }
 
         pub fn put(self: *Self, value: T) !void {
@@ -50,7 +57,7 @@ pub fn BlockingQueue(comptime T: type) type {
         }
 
         fn takeLocked(self: *Self) T {
-            std.debug.assert(!self.isEmpty());
+            assert(!self.isEmpty());
             const node: *Node = self.buffer.popFirst().?;
             const value: T = node.data;
             self.allocator.destroy(node);
@@ -74,32 +81,38 @@ pub fn BlockingQueue(comptime T: type) type {
 
 const testing = std.testing;
 
-fn producer(q: *BlockingQueue(u64)) void {
-    for (0..10) |i| {
+const WaitGroup = @import("wait_group.zig").WaitGroup;
+
+fn producer(q: *BlockingQueue(u64), wg: *WaitGroup) void {
+    for (0..5) |i| {
         q.put(i) catch |err| std.debug.print("Error: {}\n", .{err});
         std.debug.print("Produced: {}\n", .{i});
+        std.Thread.sleep(std.time.ns_per_s / 4);
     }
+    q.close();
+    wg.done();
 }
 
-fn consumer(q: *BlockingQueue(u64)) void {
+fn consumer(q: *BlockingQueue(u64), wg: *WaitGroup) void {
     while (q.take()) |elem| {
         std.debug.print("Consumed: {}\n", .{elem});
     }
+    wg.done();
 }
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer testing.expect(gpa.deinit() == .ok) catch unreachable;
+    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
 
     const alloc = gpa.allocator();
     var queue = BlockingQueue(u64).init(alloc);
     defer queue.deinit();
 
-    var prod = try std.Thread.spawn(.{}, producer, .{&queue});
-    var cons = try std.Thread.spawn(.{}, consumer, .{&queue});
-
-    std.time.sleep(1 * std.time.ns_per_s);
-    queue.close();
+    var wg: WaitGroup = .{};
+    wg.add(2);
+    var cons = try std.Thread.spawn(.{}, consumer, .{ &queue, &wg });
+    var prod = try std.Thread.spawn(.{}, producer, .{ &queue, &wg });
+    wg.wait();
 
     prod.join();
     cons.join();
