@@ -57,3 +57,31 @@ pub const ManualRuntime = struct {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const testing = std.testing;
+
+const TestRunnable = struct {
+    pub fn runnable(self: *TestRunnable) Runnable {
+        return Runnable.init(self);
+    }
+
+    pub fn run(_: *TestRunnable) void {
+        std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
+    }
+};
+
+test "basic" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
+    const allocator = gpa.allocator();
+
+    var manual: ManualRuntime = ManualRuntime.init(allocator);
+    var task: TestRunnable = .{};
+
+    try manual.submit(task.runnable());
+    try manual.submit(task.runnable());
+
+    testing.expect(manual.tasks.len == 2) catch @panic("TEST FAIL");
+    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+}

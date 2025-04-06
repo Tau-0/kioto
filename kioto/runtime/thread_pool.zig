@@ -85,7 +85,7 @@ const TestRunnable = struct {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer testing.expect(gpa.deinit() == .ok) catch unreachable;
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
     var pool: ThreadPool = try ThreadPool.init(4, allocator);
