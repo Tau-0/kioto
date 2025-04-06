@@ -1,4 +1,5 @@
 comptime {
+    _ = @import("fibers/api.zig");
     _ = @import("fibers/core/coroutine.zig");
     _ = @import("fibers/core/fiber.zig");
     _ = @import("fibers/core/machine/context.zig");

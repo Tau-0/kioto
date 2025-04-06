@@ -32,13 +32,13 @@ pub const Fiber = struct {
         self.coro.resumeCoro();
         current_fiber = caller;
         if (self.isCompleted()) {
-            // delete this;
-            // return;
+            self.deinit();
+            return;
         }
     }
 
-    pub fn suspendFiber(_: *Fiber) void {
-        Coroutine.suspendCoro();
+    pub fn suspendFiber(self: *Fiber) void {
+        self.coro.suspendCoro();
     }
 
     pub fn current() ?*Fiber {
@@ -74,7 +74,6 @@ const TaskA = struct {
 
     pub fn run(self: *TaskA) void {
         std.debug.print("2\n", .{});
-        // Fiber.current().?.suspendFiber();
         std.debug.print("5\n", .{});
         self.wg.done();
     }
@@ -89,7 +88,6 @@ const TaskB = struct {
 
     pub fn run(self: *TaskB) void {
         std.debug.print("1\n", .{});
-        // Fiber.current().?.suspendFiber();
         std.debug.print("4\n", .{});
         self.wg.done();
     }
@@ -98,6 +96,7 @@ const TaskB = struct {
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     const allocator = gpa.allocator();
+    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
 
     var tp: ThreadPool = try ThreadPool.init(1, allocator);
     try tp.start();
@@ -112,14 +111,10 @@ test "basic" {
     var t2: TaskB = .{ .wg = &wg };
     var fiber2 = try Fiber.init(&tp, t2.runnable(), allocator);
 
-    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
-    defer fiber1.deinit();
-    defer fiber2.deinit();
-    defer testing.expect(fiber1.isCompleted()) catch @panic("TEST FAIL");
-    defer testing.expect(fiber2.isCompleted()) catch @panic("TEST FAIL");
-
     wg.add(2);
     try fiber1.submit();
     try fiber2.submit();
     wg.wait();
+    testing.expect(fiber1.isCompleted()) catch @panic("TEST FAIL");
+    testing.expect(fiber2.isCompleted()) catch @panic("TEST FAIL");
 }
