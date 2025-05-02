@@ -23,12 +23,10 @@ pub const TimerQueue = struct {
     const Self = @This();
     const TimePoint = ManualClock.TimePoint;
 
-    allocator: std.mem.Allocator = undefined,
     tasks: Queue = undefined,
 
     pub fn init(allocator: Allocator) Self {
         return .{
-            .allocator = allocator,
             .tasks = Queue.init(allocator, .{}),
         };
     }
@@ -49,8 +47,8 @@ pub const TimerQueue = struct {
         return self.tasks.peek().?.deadline;
     }
 
-    pub fn takeReadyTasks(self: *Self, now: TimePoint) !ArrayList(Runnable) {
-        var ready_tasks: ArrayList(Runnable) = ArrayList(Runnable).init(self.allocator);
+    pub fn takeReadyTasks(self: *Self, now: TimePoint, allocator: Allocator) !ArrayList(Runnable) {
+        var ready_tasks: ArrayList(Runnable) = ArrayList(Runnable).init(allocator);
         while (!self.isEmpty() and now.microseconds >= self.nextDeadline().microseconds) {
             try ready_tasks.append(self.tasks.remove().handler);
         }
@@ -90,19 +88,19 @@ test "basic" {
     testing.expect(queue.nextDeadline().microseconds == 10) catch @panic("TEST FAIL");
 
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 0 }) catch @panic("TEST FAIL");
+        const t = queue.takeReadyTasks(.{ .microseconds = 0 }, allocator) catch @panic("TEST FAIL");
         defer t.deinit();
 
         testing.expect(t.items.len == 0) catch @panic("TEST FAIL");
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 9 }) catch @panic("TEST FAIL");
+        const t = queue.takeReadyTasks(.{ .microseconds = 9 }, allocator) catch @panic("TEST FAIL");
         defer t.deinit();
 
         testing.expect(t.items.len == 0) catch @panic("TEST FAIL");
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 10 }) catch @panic("TEST FAIL");
+        const t = queue.takeReadyTasks(.{ .microseconds = 10 }, allocator) catch @panic("TEST FAIL");
         defer t.deinit();
 
         testing.expect(t.items.len == 1) catch @panic("TEST FAIL");
@@ -113,7 +111,7 @@ test "basic" {
         }
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 100 }) catch @panic("TEST FAIL");
+        const t = queue.takeReadyTasks(.{ .microseconds = 100 }, allocator) catch @panic("TEST FAIL");
         defer t.deinit();
 
         testing.expect(t.items.len == 1) catch @panic("TEST FAIL");
