@@ -11,7 +11,6 @@ pub const ManualClock = struct {
         microseconds: i64,
     };
 
-    // in microseconds
     current_time: TimePoint = .{ .microseconds = 0 },
 
     pub fn advance(self: *ManualClock, delta: Duration) void {

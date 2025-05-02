@@ -8,19 +8,19 @@ pub const Spinlock = struct {
 
     pub fn lock(self: *Spinlock) void {
         var backoff: Backoff = .{};
-        while (self.locked.swap(true, .seq_cst)) {
-            while (self.locked.load(.seq_cst)) {
+        while (self.locked.swap(true, .acq_rel)) {
+            while (self.locked.load(.acquire)) {
                 backoff.spin();
             }
         }
     }
 
     pub fn tryLock(self: *Spinlock) bool {
-        return !self.locked.swap(true, .seq_cst);
+        return !self.locked.swap(true, .acq_rel);
     }
 
     pub fn unlock(self: *Spinlock) void {
-        self.locked.store(false, .seq_cst);
+        self.locked.store(false, .release);
     }
 };
 
