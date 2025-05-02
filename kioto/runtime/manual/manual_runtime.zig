@@ -1,58 +1,84 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const DoublyLinkedList = std.DoublyLinkedList;
-const Runnable = @import("../task/task.zig").Runnable;
+const ArrayList = std.ArrayList;
+const Clock = @import("manual_clock.zig").ManualClock;
+const Executor = @import("manual_executor.zig").ManualExecutor;
+const Runnable = @import("../../task/task.zig").Runnable;
+const TimerQueue = @import("timer_queue.zig").TimerQueue;
 
 pub const ManualRuntime = struct {
-    const Queue = DoublyLinkedList(Runnable);
-    const Node = Queue.Node;
+    const TimePoint = Clock.TimePoint;
+    const Duration = Clock.Duration;
 
-    tasks: Queue = .{},
+    executor: Executor = undefined,
+    timers: TimerQueue = undefined,
+    clock: Clock = .{},
     allocator: Allocator = undefined,
 
     pub fn init(allocator: Allocator) ManualRuntime {
         return .{
+            .executor = Executor.init(allocator),
+            .timers = TimerQueue.init(allocator),
             .allocator = allocator,
         };
     }
 
-    pub fn submit(self: *ManualRuntime, runnable: Runnable) !void {
-        var node: *Node = try self.allocator.create(Node);
-        node.data = runnable;
-        self.tasks.append(node);
+    pub fn deinit(self: *ManualRuntime) void {
+        self.timers.deinit();
+        self.executor.deinit();
     }
 
+    // Runtime interface
+    pub fn submitTask(self: *ManualRuntime, runnable: Runnable) !void {
+        try self.executor.submit(runnable);
+    }
+
+    pub fn submitTimer(self: *ManualRuntime, runnable: Runnable, delay: Duration) !void {
+        const deadline: TimePoint = .{ .microseconds = self.clock.now().microseconds + delay.microseconds };
+        try self.timers.push(runnable, deadline);
+    }
+
+    // Tasks
     pub fn runOne(self: *ManualRuntime) bool {
-        var done: bool = false;
-        if (!self.isEmpty()) {
-            const node: *Node = self.tasks.popFirst().?;
-            var runnable: Runnable = node.data;
-            self.allocator.destroy(node);
-            runnable.run();
-            done = true;
-        }
-        return done;
+        return self.executor.runOne();
     }
 
     pub fn runLimited(self: *ManualRuntime, limit: usize) usize {
-        var done: usize = 0;
-        while (done < limit and self.runOne()) {
-            done += 1;
-        }
-        return done;
+        return self.executor.runLimited(limit);
     }
 
     pub fn runAll(self: *ManualRuntime) usize {
-        var done: usize = 0;
-        while (self.runOne()) {
-            done += 1;
-        }
-        return done;
+        return self.executor.runAll();
     }
 
+    // Timers
+    pub fn advanceClock(self: *ManualRuntime, delta: Duration) usize {
+        self.clock.advance(delta);
+        return self.submitReadyTimers();
+    }
+
+    pub fn setClockToNextDeadline(self: *ManualRuntime) usize {
+        if (self.timers.isEmpty()) {
+            return 0;
+        }
+
+        self.clock.set(self.timers.nextDeadline());
+        return self.submitReadyTasks();
+    }
+
+    // Misc
     pub fn isEmpty(self: *const ManualRuntime) bool {
-        return self.tasks.len == 0;
+        return self.executor.isEmpty() and self.timers.isEmpty();
+    }
+
+    fn submitReadyTasks(self: *ManualRuntime) usize {
+        var tasks: ArrayList(Runnable) = self.timers.takeReadyTasks(self.clock.now(), self.allocator) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
+        defer tasks.deinit();
+        for (tasks.items) |t| {
+            self.submitTask(t) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
+        }
+        return tasks.items.len;
     }
 };
 
@@ -61,12 +87,14 @@ pub const ManualRuntime = struct {
 const testing = std.testing;
 
 const TestRunnable = struct {
+    x: i32 = undefined,
+
     pub fn runnable(self: *TestRunnable) Runnable {
         return Runnable.init(self);
     }
 
-    pub fn run(_: *TestRunnable) void {
-        std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
+    pub fn run(self: *TestRunnable) void {
+        std.debug.print("{}\n", .{self.x});
     }
 };
 
@@ -76,12 +104,30 @@ test "basic" {
     const allocator = gpa.allocator();
 
     var manual: ManualRuntime = ManualRuntime.init(allocator);
-    var task: TestRunnable = .{};
+    defer manual.deinit();
 
-    try manual.submit(task.runnable());
-    try manual.submit(task.runnable());
+    var task1: TestRunnable = .{ .x = 100 };
+    var task2: TestRunnable = .{ .x = 200 };
+    var task3: TestRunnable = .{ .x = 300 };
 
-    testing.expect(manual.tasks.len == 2) catch @panic("TEST FAIL");
+    try manual.submitTask(task1.runnable());
+    try manual.submitTask(task2.runnable());
+
+    try manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
+    try manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
+    try manual.submitTimer(task3.runnable(), .{ .microseconds = 2000 });
+
     testing.expect(manual.runOne()) catch @panic("TEST FAIL");
     testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+
+    testing.expect(manual.setClockToNextDeadline() == 2) catch @panic("TEST FAIL");
+    testing.expect(manual.timers.tasks.count() == 1) catch @panic("TEST FAIL");
+
+    testing.expect(manual.runAll() == 2) catch @panic("TEST FAIL");
+
+    testing.expect(manual.setClockToNextDeadline() == 1) catch @panic("TEST FAIL");
+    testing.expect(manual.timers.tasks.count() == 0) catch @panic("TEST FAIL");
+
+    testing.expect(manual.runAll() == 1) catch @panic("TEST FAIL");
+    testing.expect(manual.isEmpty()) catch @panic("TEST FAIL");
 }
