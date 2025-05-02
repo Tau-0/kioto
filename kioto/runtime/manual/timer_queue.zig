@@ -84,6 +84,7 @@ test "basic" {
 
     queue.push(task1.runnable(), .{ .microseconds = 10 }) catch @panic("TEST FAIL");
     queue.push(task2.runnable(), .{ .microseconds = 20 }) catch @panic("TEST FAIL");
+    queue.push(task2.runnable(), .{ .microseconds = 20 }) catch @panic("TEST FAIL");
 
     testing.expect(queue.nextDeadline().microseconds == 10) catch @panic("TEST FAIL");
 
@@ -114,7 +115,7 @@ test "basic" {
         const t = queue.takeReadyTasks(.{ .microseconds = 100 }, allocator) catch @panic("TEST FAIL");
         defer t.deinit();
 
-        testing.expect(t.items.len == 1) catch @panic("TEST FAIL");
+        testing.expect(t.items.len == 2) catch @panic("TEST FAIL");
         testing.expect(queue.isEmpty()) catch @panic("TEST FAIL");
 
         for (t.items) |h| {
