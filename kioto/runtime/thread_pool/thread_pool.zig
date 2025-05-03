@@ -4,8 +4,8 @@ const assert = std.debug.assert;
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const BlockingQueue = @import("../threads/blocking_queue.zig").BlockingQueue;
-const Runnable = @import("../task/task.zig").Runnable;
+const BlockingQueue = @import("../../threads/blocking_queue.zig").BlockingQueue;
+const Runnable = @import("../../task/task.zig").Runnable;
 const Thread = std.Thread;
 
 threadlocal var current_pool: ?*ThreadPool = null;
@@ -67,7 +67,7 @@ pub const ThreadPool = struct {
 
 const testing = std.testing;
 
-const WaitGroup = @import("../threads/wait_group.zig").WaitGroup;
+const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TestRunnable = struct {
     wg: *WaitGroup,

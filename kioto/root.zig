@@ -6,9 +6,12 @@ comptime {
     // _ = @import("fibers/core/machine/stack.zig");
 
     // _ = @import("runtime/manual/manual_executor.zig");
-    _ = @import("runtime/manual/manual_runtime.zig");
+    // _ = @import("runtime/manual/manual_runtime.zig");
     // _ = @import("runtime/manual/timer_queue.zig");
-    // _ = @import("runtime/thread_pool.zig");
+
+    // _ = @import("runtime/thread_pool/thread_pool.zig");
+    _ = @import("runtime/thread_pool/timer_thread.zig");
+    // _ = @import("runtime/thread_pool/monotonic_clock.zig");
 
     // _ = @import("task/task.zig");
 

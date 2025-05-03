@@ -4,11 +4,11 @@ const assert = std.debug.assert;
 
 pub const ManualClock = struct {
     pub const Duration = struct {
-        microseconds: i64,
+        microseconds: u64,
     };
 
     pub const TimePoint = struct {
-        microseconds: i64,
+        microseconds: u64,
     };
 
     current_time: TimePoint = .{ .microseconds = 0 },
