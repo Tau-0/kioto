@@ -9,8 +9,8 @@ comptime {
     _ = @import("runtime/manual/manual_executor.zig");
     _ = @import("runtime/manual/manual_runtime.zig");
     _ = @import("runtime/manual/timer_queue.zig");
+    _ = @import("runtime/multi_threaded/concurrent_runtime.zig");
     _ = @import("runtime/multi_threaded/monotonic_clock.zig");
-    _ = @import("runtime/multi_threaded/mt_runtime.zig");
     _ = @import("runtime/multi_threaded/thread_pool.zig");
     _ = @import("runtime/multi_threaded/timer_thread.zig");
     _ = @import("runtime/runtime.zig");

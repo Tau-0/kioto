@@ -9,7 +9,7 @@ const Runtime = @import("../runtime.zig").Runtime;
 const ThreadPool = @import("thread_pool.zig").ThreadPool;
 const TimerThread = @import("timer_thread.zig").TimerThread;
 
-pub const MultiThreadedRuntime = struct {
+pub const ConcurrentRuntime = struct {
     const Self = @This();
 
     pool: ThreadPool = undefined,
@@ -88,7 +88,7 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var runtime: MultiThreadedRuntime = MultiThreadedRuntime.init(2, allocator);
+    var runtime: ConcurrentRuntime = ConcurrentRuntime.init(2, allocator);
     defer runtime.deinit();
 
     runtime.allowTimers().start();

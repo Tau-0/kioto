@@ -48,8 +48,8 @@ pub const Runtime = struct {
 
 const testing = std.testing;
 
+const Concurrent = @import("multi_threaded/concurrent_runtime.zig").ConcurrentRuntime;
 const Manual = @import("manual/manual_runtime.zig").ManualRuntime;
-const MTR = @import("multi_threaded/mt_runtime.zig").MultiThreadedRuntime;
 
 const TestRunnable = struct {
     x: i32 = undefined,
@@ -68,7 +68,7 @@ test "mtr" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var runtime: MTR = MTR.init(2, allocator);
+    var runtime: Concurrent = Concurrent.init(2, allocator);
     defer runtime.deinit();
 
     runtime.allowTimers().start();
