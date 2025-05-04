@@ -55,6 +55,7 @@ pub const ConcurrentRuntime = struct {
     }
 
     pub fn submitTimer(self: *Self, runnable: Runnable, delay: time.Duration) void {
+        std.debug.assert(self.timer_thread != null);
         self.timer_thread.?.submit(runnable, delay) catch unreachable;
     }
 

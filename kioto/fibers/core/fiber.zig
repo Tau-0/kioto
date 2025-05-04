@@ -1,7 +1,9 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const Awaiter = @import("awaiter.zig").Awaiter;
 const Coroutine = @import("coroutine.zig").Coroutine;
+const Duration = @import("../../runtime/time.zig").Duration;
 const Runnable = @import("../../task/task.zig").Runnable;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
 
@@ -10,20 +12,32 @@ threadlocal var current_fiber: ?*Fiber = null;
 pub const Fiber = struct {
     coro: Coroutine = undefined,
     runtime: Runtime = undefined,
+    awaiter: ?Awaiter = null,
+    allocator: Allocator = undefined,
+    on_heap: bool = undefined,
 
-    pub fn init(runtime: Runtime, task: Runnable, allocator: Allocator) !Fiber {
+    pub fn init(runtime: Runtime, task: Runnable, allocator: Allocator, on_heap: bool) !Fiber {
         return .{
             .coro = try Coroutine.init(task, allocator),
             .runtime = runtime,
+            .allocator = allocator,
+            .on_heap = on_heap,
         };
     }
 
     pub fn deinit(self: *Fiber) void {
         self.coro.deinit();
+        if (self.on_heap) {
+            self.allocator.destroy(self);
+        }
     }
 
-    pub fn submit(self: *Fiber) void {
+    pub fn submitTask(self: *Fiber) void {
         self.runtime.submitTask(self.runnable());
+    }
+
+    pub fn submitTimer(self: *Fiber, delay: Duration) void {
+        self.runtime.submitTimer(self.runnable(), delay);
     }
 
     pub fn resumeFiber(self: *Fiber) void {
@@ -34,8 +48,9 @@ pub const Fiber = struct {
         self.dispatch();
     }
 
-    pub fn suspendFiber(self: *Fiber) void {
-        self.coro.suspendCoro();
+    pub fn suspendFiber(self: *Fiber, awaiter: Awaiter) void {
+        self.awaiter = awaiter;
+        Coroutine.suspendCoro();
     }
 
     pub fn current() ?*Fiber {
@@ -46,9 +61,17 @@ pub const Fiber = struct {
         return self.coro.isCompleted();
     }
 
+    pub fn getRuntime(self: *const Fiber) Runtime {
+        return self.runtime;
+    }
+
     fn dispatch(self: *Fiber) void {
         if (self.isCompleted()) {
             self.deinit();
+        } else if (self.awaiter != null) {
+            var awaiter: Awaiter = self.awaiter.?;
+            self.awaiter = null;
+            awaiter.afterSuspend(self);
         }
     }
 
@@ -111,14 +134,14 @@ test "basic" {
     var wg: WaitGroup = .{};
 
     var t1: TaskA = .{ .wg = &wg };
-    var fiber1 = try Fiber.init(runtime.runtime(), t1.runnable(), allocator);
+    var fiber1 = try Fiber.init(runtime.runtime(), t1.runnable(), allocator, false);
 
     var t2: TaskB = .{ .wg = &wg };
-    var fiber2 = try Fiber.init(runtime.runtime(), t2.runnable(), allocator);
+    var fiber2 = try Fiber.init(runtime.runtime(), t2.runnable(), allocator, false);
 
     wg.add(2);
-    fiber1.submit();
-    fiber2.submit();
+    fiber1.submitTask();
+    fiber2.submitTask();
     wg.wait();
     testing.expect(fiber1.isCompleted()) catch @panic("TEST FAIL");
     testing.expect(fiber2.isCompleted()) catch @panic("TEST FAIL");

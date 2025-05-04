@@ -25,7 +25,7 @@ pub const Awaiter = struct {
         };
     }
 
-    pub fn afterSuspend(self: Awaiter) void {
-        self.after_suspend_fn(self.impl);
+    pub fn afterSuspend(self: Awaiter, fiber: *Fiber) void {
+        self.after_suspend_fn(self.impl, fiber);
     }
 };

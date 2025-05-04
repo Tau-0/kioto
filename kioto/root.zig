@@ -1,5 +1,9 @@
 comptime {
     _ = @import("fibers/api.zig");
+    _ = @import("fibers/api/sleep_for.zig");
+    _ = @import("fibers/api/spawn.zig");
+    _ = @import("fibers/api/suspend.zig");
+    _ = @import("fibers/api/yield.zig");
     _ = @import("fibers/core/awaiter.zig");
     _ = @import("fibers/core/coroutine.zig");
     _ = @import("fibers/core/fiber.zig");
