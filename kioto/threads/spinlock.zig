@@ -29,7 +29,7 @@ pub const Spinlock = struct {
 const testing = std.testing;
 
 const Runnable = @import("../task/task.zig").Runnable;
-const ThreadPool = @import("../runtime/thread_pool.zig").ThreadPool;
+const ThreadPool = @import("../runtime/multi_threaded/thread_pool.zig").ThreadPool;
 const WaitGroup = @import("wait_group.zig").WaitGroup;
 
 const Task = struct {

@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const time = @import("../time.zig");
+
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Atomic = std.atomic.Value;
@@ -15,7 +17,7 @@ const Context = struct {};
 
 const TimedTask = struct {
     handler: Runnable = undefined,
-    deadline: Clock.TimePoint = undefined,
+    deadline: time.TimePoint = undefined,
 };
 
 fn lessThan(_: Context, a: TimedTask, b: TimedTask) Order {
@@ -23,8 +25,8 @@ fn lessThan(_: Context, a: TimedTask, b: TimedTask) Order {
 }
 
 pub const TimerThread = struct {
-    const Duration = Clock.Duration;
-    const TimePoint = Clock.TimePoint;
+    const Duration = time.Duration;
+    const TimePoint = time.TimePoint;
 
     const Queue = PriorityQueue(TimedTask, Context, lessThan);
     const Self = @This();

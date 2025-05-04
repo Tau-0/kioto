@@ -1,19 +1,12 @@
 const std = @import("std");
 
 const assert = std.debug.assert;
+const time = @import("../time.zig");
 
 const Timer = std.time.Timer;
 
 pub const MonotonicClock = struct {
     const Self = @This();
-
-    pub const Duration = struct {
-        microseconds: u64,
-    };
-
-    pub const TimePoint = struct {
-        microseconds: u64,
-    };
 
     timer: Timer = undefined,
 
@@ -23,7 +16,7 @@ pub const MonotonicClock = struct {
         };
     }
 
-    pub fn now(self: *Self) TimePoint {
+    pub fn now(self: *Self) time.TimePoint {
         const current_time = self.timer.read();
         return .{
             .microseconds = @divTrunc(current_time, std.time.ns_per_us),

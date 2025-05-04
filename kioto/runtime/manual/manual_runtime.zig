@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const time = @import("../time.zig");
+
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Clock = @import("manual_clock.zig").ManualClock;
@@ -8,8 +10,8 @@ const Runnable = @import("../../task/task.zig").Runnable;
 const TimerQueue = @import("timer_queue.zig").TimerQueue;
 
 pub const ManualRuntime = struct {
-    const TimePoint = Clock.TimePoint;
-    const Duration = Clock.Duration;
+    const TimePoint = time.TimePoint;
+    const Duration = time.Duration;
 
     executor: Executor = undefined,
     timers: TimerQueue = undefined,
