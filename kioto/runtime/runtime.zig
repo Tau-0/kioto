@@ -63,7 +63,7 @@ const TestRunnable = struct {
     }
 };
 
-test "mtr" {
+test "concurrent" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
