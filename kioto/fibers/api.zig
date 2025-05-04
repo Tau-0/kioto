@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const Fiber = @import("core/fiber.zig").Fiber;
 const Instant = std.time.Instant;
 const Runnable = @import("../task/task.zig").Runnable;
-const ThreadPool = @import("../runtime/multi_threaded/thread_pool.zig").ThreadPool;
+const ThreadPool = @import("../runtime/concurrent/thread_pool.zig").ThreadPool;
 
 pub fn spawn(tp: *ThreadPool, task: Runnable, allocator: Allocator) !void {
     var fiber: *Fiber = try allocator.create(Fiber);

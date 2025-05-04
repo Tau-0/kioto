@@ -48,7 +48,7 @@ pub const Runtime = struct {
 
 const testing = std.testing;
 
-const Concurrent = @import("multi_threaded/concurrent_runtime.zig").ConcurrentRuntime;
+const Concurrent = @import("concurrent/concurrent_runtime.zig").ConcurrentRuntime;
 const Manual = @import("manual/manual_runtime.zig").ManualRuntime;
 
 const TestRunnable = struct {
