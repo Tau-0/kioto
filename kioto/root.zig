@@ -13,6 +13,7 @@ comptime {
     _ = @import("runtime/multi_threaded/mt_runtime.zig");
     _ = @import("runtime/multi_threaded/thread_pool.zig");
     _ = @import("runtime/multi_threaded/timer_thread.zig");
+    _ = @import("runtime/runtime.zig");
     _ = @import("runtime/time.zig");
 
     _ = @import("task/task.zig");

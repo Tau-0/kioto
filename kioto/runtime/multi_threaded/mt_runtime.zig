@@ -5,6 +5,7 @@ const time = @import("../time.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Runnable = @import("../../task/task.zig").Runnable;
+const Runtime = @import("../runtime.zig").Runtime;
 const ThreadPool = @import("thread_pool.zig").ThreadPool;
 const TimerThread = @import("timer_thread.zig").TimerThread;
 
@@ -49,12 +50,16 @@ pub const MultiThreadedRuntime = struct {
     }
 
     // Runtime interface
-    pub fn submitTask(self: *Self, runnable: Runnable) !void {
-        try self.pool.submit(runnable);
+    pub fn submitTask(self: *Self, runnable: Runnable) void {
+        self.pool.submit(runnable) catch unreachable;
     }
 
-    pub fn submitTimer(self: *Self, runnable: Runnable, delay: time.Duration) !void {
-        try self.timer_thread.?.submit(runnable, delay);
+    pub fn submitTimer(self: *Self, runnable: Runnable, delay: time.Duration) void {
+        self.timer_thread.?.submit(runnable, delay) catch unreachable;
+    }
+
+    pub fn runtime(self: *Self) Runtime {
+        return Runtime.init(self);
     }
 
     pub fn here(self: *const Self) bool {
@@ -93,12 +98,12 @@ test "basic" {
     var task2: TestRunnable = .{ .x = 200 };
     var task3: TestRunnable = .{ .x = 300 };
 
-    try runtime.submitTask(task1.runnable());
-    try runtime.submitTask(task2.runnable());
+    runtime.submitTask(task1.runnable());
+    runtime.submitTask(task2.runnable());
 
-    try runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    try runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    try runtime.submitTimer(task3.runnable(), .{ .microseconds = 2 * std.time.us_per_s });
+    runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
+    runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
+    runtime.submitTimer(task3.runnable(), .{ .microseconds = 2 * std.time.us_per_s });
 
     std.Thread.sleep(3 * std.time.ns_per_s);
 }

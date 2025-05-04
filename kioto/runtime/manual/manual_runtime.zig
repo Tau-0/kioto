@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Clock = @import("manual_clock.zig").ManualClock;
 const Executor = @import("manual_executor.zig").ManualExecutor;
+const Runtime = @import("../runtime.zig").Runtime;
 const Runnable = @import("../../task/task.zig").Runnable;
 const TimerQueue = @import("timer_queue.zig").TimerQueue;
 
@@ -32,13 +33,17 @@ pub const ManualRuntime = struct {
     }
 
     // Runtime interface
-    pub fn submitTask(self: *ManualRuntime, runnable: Runnable) !void {
-        try self.executor.submit(runnable);
+    pub fn submitTask(self: *ManualRuntime, runnable: Runnable) void {
+        self.executor.submit(runnable) catch unreachable;
     }
 
-    pub fn submitTimer(self: *ManualRuntime, runnable: Runnable, delay: Duration) !void {
+    pub fn submitTimer(self: *ManualRuntime, runnable: Runnable, delay: Duration) void {
         const deadline: TimePoint = .{ .microseconds = self.clock.now().microseconds + delay.microseconds };
-        try self.timers.push(runnable, deadline);
+        self.timers.push(runnable, deadline) catch unreachable;
+    }
+
+    pub fn runtime(self: *ManualRuntime) Runtime {
+        return Runtime.init(self);
     }
 
     // Tasks
@@ -78,7 +83,7 @@ pub const ManualRuntime = struct {
         var tasks: ArrayList(Runnable) = self.timers.takeReadyTasks(self.clock.now(), self.allocator) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
         defer tasks.deinit();
         for (tasks.items) |t| {
-            self.submitTask(t) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
+            self.submitTask(t);
         }
         return tasks.items.len;
     }
@@ -112,12 +117,12 @@ test "basic" {
     var task2: TestRunnable = .{ .x = 200 };
     var task3: TestRunnable = .{ .x = 300 };
 
-    try manual.submitTask(task1.runnable());
-    try manual.submitTask(task2.runnable());
+    manual.submitTask(task1.runnable());
+    manual.submitTask(task2.runnable());
 
-    try manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    try manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    try manual.submitTimer(task3.runnable(), .{ .microseconds = 2000 });
+    manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
+    manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
+    manual.submitTimer(task3.runnable(), .{ .microseconds = 2000 });
 
     testing.expect(manual.runOne()) catch @panic("TEST FAIL");
     testing.expect(manual.runOne()) catch @panic("TEST FAIL");
