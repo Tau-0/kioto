@@ -1,5 +1,5 @@
 comptime {
-    // _ = @import("containers/intrusive_list.zig");
+    _ = @import("containers/intrusive_list.zig");
 
     // _ = @import("fibers/api.zig");
     // _ = @import("fibers/api/sleep_for.zig");

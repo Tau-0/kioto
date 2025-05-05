@@ -6,13 +6,15 @@ const FiberApi = @import("../api.zig");
 const List = @import("../../containers/intrusive_list.zig").IntrusiveList;
 const Spinlock = @import("../../threads/spinlock.zig").Spinlock;
 
+const WaitQueue = List(EventAwaiter);
+
 const EventAwaiter = struct {
     const Self = @This();
 
     event: *Event = undefined,
     guard: *Spinlock = undefined,
     fiber: *Fiber = undefined,
-    node: List.Node = .{},
+    node: WaitQueue.Node = .{},
 
     pub fn afterSuspend(self: *Self, fiber: *Fiber) void {
         defer self.guard.unlock();
@@ -32,7 +34,7 @@ const EventAwaiter = struct {
 pub const Event = struct {
     const Self = @This();
 
-    wait_queue: List = .{},
+    wait_queue: WaitQueue = .{},
     guard: Spinlock = .{},
     fired: bool = false,
 
@@ -49,7 +51,7 @@ pub const Event = struct {
     }
 
     pub fn fire(self: *Self) void {
-        var to_wake: List = .{};
+        var to_wake: WaitQueue = .{};
         to_wake.init();
         {
             self.guard.lock();
@@ -59,8 +61,7 @@ pub const Event = struct {
         }
 
         while (to_wake.nonEmpty()) {
-            var awaiter: *EventAwaiter = to_wake.popFront().?.as(EventAwaiter);
-            awaiter.submit();
+            to_wake.popFrontUnsafe().submit();
         }
     }
 };

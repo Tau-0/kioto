@@ -3,135 +3,163 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 // Circular doubly-linked intrusive list
-pub const IntrusiveList = struct {
-    const Self = @This();
+pub fn IntrusiveList(comptime T: type) type {
+    return struct {
+        const Self = @This();
 
-    pub const Node = struct {
-        left: ?*Node = null, // to head
-        right: ?*Node = null, // to tail
+        pub const Node = struct {
+            left: ?*Node = null, // to head
+            right: ?*Node = null, // to tail
 
-        pub fn isLinked(self: *const Node) bool {
-            return self.left != null;
+            pub fn isLinked(self: *const Node) bool {
+                return self.left != null;
+            }
+
+            pub fn linkAfter(self: *Node, target: *Node) void {
+                assert(!self.isLinked());
+                self.left = target;
+                self.right = target.right;
+
+                assert(target.right != null);
+                var after_target: *Node = target.right.?;
+                after_target.left = self;
+                target.right = self;
+            }
+
+            pub fn linkBefore(self: *Node, target: *Node) void {
+                assert(!self.isLinked());
+                self.left = target.left;
+                self.right = target;
+
+                assert(target.left != null);
+                var before_target: *Node = target.left.?;
+                before_target.right = self;
+                target.left = self;
+            }
+
+            pub fn unlink(self: *Node) void {
+                assert(self.isLinked());
+
+                self.left.?.right = self.right;
+                self.right.?.left = self.left;
+
+                self.left = null;
+                self.right = null;
+            }
+
+            pub fn asItem(self: *Node) *T {
+                return @fieldParentPtr("node", self);
+            }
+        };
+
+        // Sentinel <-> Head <-> ... <-> Tail <-> Sentinel
+        // Sentinel->Left == Tail
+        // Sentinel->Right == Head
+        sentinel: Node = .{},
+
+        pub fn init(self: *Self) void {
+            comptime assert(@hasField(T, "node"));
+            comptime assert(@FieldType(T, "node") == Self.Node);
+            self.sentinel.left = &self.sentinel;
+            self.sentinel.right = &self.sentinel;
         }
 
-        pub fn linkAfter(self: *Node, target: *Node) void {
-            assert(!self.isLinked());
-            self.left = target;
-            self.right = target.right;
-
-            assert(target.right != null);
-            var after_target: *Node = target.right.?;
-            after_target.left = self;
-            target.right = self;
+        pub fn isEmpty(self: *const Self) bool {
+            return self.sentinel.left == &self.sentinel;
         }
 
-        pub fn linkBefore(self: *Node, target: *Node) void {
-            assert(!self.isLinked());
-            self.left = target.left;
-            self.right = target;
-
-            assert(target.left != null);
-            var before_target: *Node = target.left.?;
-            before_target.right = self;
-            target.left = self;
+        pub fn nonEmpty(self: *const Self) bool {
+            return self.sentinel.left != &self.sentinel;
         }
 
-        pub fn unlink(self: *Node) void {
-            assert(self.isLinked());
-
-            self.left.?.right = self.right;
-            self.right.?.left = self.left;
-
-            self.left = null;
-            self.right = null;
+        fn backNode(self: *Self) *Node {
+            return self.sentinel.left.?;
         }
 
-        pub fn as(self: *Node, comptime T: type) *T {
-            return @fieldParentPtr("node", self);
+        fn frontNode(self: *Self) *Node {
+            return self.sentinel.right.?;
+        }
+
+        pub fn back(self: *Self) ?*T {
+            if (self.isEmpty()) {
+                return null;
+            }
+            return self.backUnsafe();
+        }
+
+        pub fn front(self: *Self) ?*T {
+            if (self.isEmpty()) {
+                return null;
+            }
+            return self.frontUnsafe();
+        }
+
+        pub fn backUnsafe(self: *Self) *T {
+            assert(self.nonEmpty());
+            return self.backNode().asItem();
+        }
+
+        pub fn frontUnsafe(self: *Self) *T {
+            assert(self.nonEmpty());
+            return self.frontNode().asItem();
+        }
+
+        // Move all nodes from rhs to lhs
+        // Post-condition: rhs is empty
+        pub fn concatByMoving(lhs: *Self, rhs: *Self) void {
+            if (rhs.isEmpty()) {
+                return;
+            }
+
+            var rhs_head: *Node = rhs.frontNode();
+            var rhs_tail: *Node = rhs.backNode();
+            rhs_head.left = lhs.sentinel.left;
+            rhs_tail.right = &lhs.sentinel;
+
+            var old_tail: *Node = lhs.sentinel.left.?;
+            lhs.sentinel.left = rhs_tail;
+            old_tail.right = rhs_head;
+
+            rhs.init();
+        }
+
+        pub fn pushBack(self: *Self, new_node: *Node) void {
+            new_node.linkAfter(self.sentinel.left.?);
+        }
+
+        pub fn pushFront(self: *Self, new_node: *Node) void {
+            new_node.linkBefore(self.sentinel.right.?);
+        }
+
+        pub fn popBack(self: *Self) ?*T {
+            if (self.isEmpty()) {
+                return null;
+            }
+            return self.popBackUnsafe();
+        }
+
+        pub fn popFront(self: *Self) ?*T {
+            if (self.isEmpty()) {
+                return null;
+            }
+            return self.popFrontUnsafe();
+        }
+
+        pub fn popBackUnsafe(self: *Self) *T {
+            assert(self.nonEmpty());
+            var node: *Node = self.backNode();
+            node.unlink();
+            return node.asItem();
+        }
+
+        pub fn popFrontUnsafe(self: *Self) *T {
+            assert(self.nonEmpty());
+            var node: *Node = self.frontNode();
+            node.unlink();
+            return node.asItem();
         }
     };
-
-    // Sentinel <-> Head <-> ... <-> Tail <-> Sentinel
-    // Sentinel->Left == Tail
-    // Sentinel->Right == Head
-    sentinel: Node = .{},
-
-    pub fn init(self: *Self) void {
-        self.sentinel.left = &self.sentinel;
-        self.sentinel.right = &self.sentinel;
-    }
-
-    pub fn isEmpty(self: *const Self) bool {
-        return self.sentinel.left == &self.sentinel;
-    }
-
-    pub fn nonEmpty(self: *const Self) bool {
-        return self.sentinel.left != &self.sentinel;
-    }
-
-    pub fn back(self: *Self) ?*Node {
-        if (self.isEmpty()) {
-            return null;
-        }
-        return self.backUnsafe();
-    }
-
-    pub fn front(self: *Self) ?*Node {
-        if (self.isEmpty()) {
-            return null;
-        }
-        return self.frontUnsafe();
-    }
-
-    pub fn backUnsafe(self: *Self) *Node {
-        assert(self.nonEmpty());
-        return self.sentinel.left.?;
-    }
-
-    pub fn frontUnsafe(self: *Self) *Node {
-        assert(self.nonEmpty());
-        return self.sentinel.right.?;
-    }
-
-    // Move all nodes from rhs to lhs
-    // Post-condition: rhs is empty
-    pub fn concatByMoving(lhs: *Self, rhs: *Self) void {
-        if (rhs.isEmpty()) {
-            return;
-        }
-
-        var rhs_head: *Node = rhs.frontUnsafe();
-        var rhs_tail: *Node = rhs.backUnsafe();
-        rhs_head.left = lhs.sentinel.left;
-        rhs_tail.right = &lhs.sentinel;
-
-        var old_tail: *Node = lhs.sentinel.left.?;
-        lhs.sentinel.left = rhs_tail;
-        old_tail.right = rhs_head;
-
-        rhs.init();
-    }
-
-    pub fn pushBack(self: *Self, new_node: *Node) void {
-        new_node.linkAfter(self.sentinel.left.?);
-    }
-
-    pub fn pushFront(self: *Self, new_node: *Node) void {
-        new_node.linkBefore(self.sentinel.right.?);
-    }
-
-    pub fn popBack(self: *Self) ?*Node {
-        var node: *Node = self.back() orelse return null;
-        node.unlink();
-        return node;
-    }
-
-    pub fn popFront(self: *Self) ?*Node {
-        var node: *Node = self.front() orelse return null;
-        node.unlink();
-        return node;
-    }
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,9 +168,9 @@ const testing = std.testing;
 test "basic" {
     const T = struct {
         data: u32,
-        node: IntrusiveList.Node = .{},
+        node: IntrusiveList(@This()).Node = .{},
     };
-    var list: IntrusiveList = .{};
+    var list: IntrusiveList(T) = .{};
     list.init();
 
     var one: T = .{ .data = 1 };
@@ -159,13 +187,10 @@ test "basic" {
 
     // Traverse forwards.
     {
-        var it = list.front();
+        var it = &list.frontUnsafe().node;
         var value: u32 = 1;
-        while (it) |node| : (it = node.right) {
-            if (it == &list.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list.sentinel) : (it = it.right.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value += 1;
         }
@@ -173,13 +198,10 @@ test "basic" {
 
     // Traverse backwards.
     {
-        var it = list.back();
+        var it = &list.backUnsafe().node;
         var value: u32 = 5;
-        while (it) |node| : (it = node.left) {
-            if (it == &list.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list.sentinel) : (it = it.left.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value -= 1;
         }
@@ -189,17 +211,17 @@ test "basic" {
     _ = list.popBack(); // {2, 3, 4}
     three.node.unlink(); // {2, 4}
 
-    try testing.expect(@as(*T, @fieldParentPtr("node", list.frontUnsafe())).data == 2);
-    try testing.expect(@as(*T, @fieldParentPtr("node", list.backUnsafe())).data == 4);
+    try testing.expect(list.frontUnsafe().data == 2);
+    try testing.expect(list.backUnsafe().data == 4);
 }
 
 test "concatenation" {
     const T = struct {
         data: u32,
-        node: IntrusiveList.Node = .{},
+        node: IntrusiveList(@This()).Node = .{},
     };
-    var list1: IntrusiveList = .{};
-    var list2: IntrusiveList = .{};
+    var list1: IntrusiveList(T) = .{};
+    var list2: IntrusiveList(T) = .{};
     list1.init();
     list2.init();
 
@@ -217,18 +239,15 @@ test "concatenation" {
 
     list1.concatByMoving(&list2);
 
-    try testing.expect(list1.back() == &five.node);
+    try testing.expect(list1.back() == &five);
     try testing.expect(list2.isEmpty());
 
     // Traverse forwards.
     {
-        var it = list1.front();
+        var it = &list1.frontUnsafe().node;
         var value: u32 = 1;
-        while (it) |node| : (it = node.right) {
-            if (it == &list1.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list1.sentinel) : (it = it.right.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value += 1;
         }
@@ -236,13 +255,10 @@ test "concatenation" {
 
     // Traverse backwards.
     {
-        var it = list1.back();
+        var it = &list1.backUnsafe().node;
         var value: u32 = 5;
-        while (it) |node| : (it = node.left) {
-            if (it == &list1.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list1.sentinel) : (it = it.left.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value -= 1;
         }
@@ -253,13 +269,10 @@ test "concatenation" {
 
     // Traverse forwards.
     {
-        var it = list2.front();
+        var it = &list2.frontUnsafe().node;
         var value: u32 = 1;
-        while (it) |node| : (it = node.right) {
-            if (it == &list2.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list2.sentinel) : (it = it.right.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value += 1;
         }
@@ -267,13 +280,10 @@ test "concatenation" {
 
     // Traverse backwards.
     {
-        var it = list2.back();
+        var it = &list2.backUnsafe().node;
         var value: u32 = 5;
-        while (it) |node| : (it = node.left) {
-            if (it == &list2.sentinel) {
-                break;
-            }
-            const l: *T = @fieldParentPtr("node", node);
+        while (it != &list2.sentinel) : (it = it.left.?) {
+            const l: *T = it.asItem();
             try testing.expect(l.data == value);
             value -= 1;
         }
