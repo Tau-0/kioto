@@ -17,9 +17,9 @@ const EventAwaiter = struct {
     node: WaitQueue.Node = .{},
 
     pub fn afterSuspend(self: *Self, fiber: *Fiber) void {
-        defer self.guard.unlock();
         self.fiber = fiber;
         self.event.wait_queue.pushBack(&self.node);
+        self.guard.unlock();
     }
 
     pub fn awaiter(self: *Self) Awaiter {
@@ -44,10 +44,13 @@ pub const Event = struct {
 
     pub fn wait(self: *Self) void {
         self.guard.lock();
-        if (!self.fired) {
-            var awaiter: EventAwaiter = .{ .event = self, .guard = &self.guard };
-            FiberApi.suspendFiber(awaiter.awaiter());
+        if (self.fired) {
+            self.guard.unlock();
+            return;
         }
+
+        var awaiter: EventAwaiter = .{ .event = self, .guard = &self.guard };
+        FiberApi.suspendFiber(awaiter.awaiter());
     }
 
     pub fn fire(self: *Self) void {
