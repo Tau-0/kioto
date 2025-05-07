@@ -181,3 +181,30 @@ test "concurrent" {
     try FiberApi.spawn(rt.runtime(), taskB.runnable(), allocator);
     wg.wait();
 }
+
+test "prefired" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
+    const allocator = gpa.allocator();
+
+    var rt: ConcurrentRuntime = ConcurrentRuntime.init(6, allocator);
+    defer rt.deinit();
+
+    rt.allowTimers().start();
+    defer rt.stop();
+
+    var event: Event = .{};
+    event.init();
+    event.fire();
+
+    var wg: WaitGroup = .{};
+    var x: i32 = 10;
+    var taskA: TaskA = .{ .x = &x, .wg = &wg, .event = &event };
+
+    for (0..6) |_| {
+        wg.add(1);
+        try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
+    }
+
+    wg.wait();
+}
