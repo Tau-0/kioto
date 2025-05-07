@@ -11,8 +11,9 @@ comptime {
     // _ = @import("fibers/core/fiber.zig");
     // _ = @import("fibers/core/machine/context.zig");
     // _ = @import("fibers/core/machine/stack.zig");
-    _ = @import("fibers/sync/event.zig");
+    // _ = @import("fibers/sync/event.zig");
     // _ = @import("fibers/sync/mutex.zig");
+    _ = @import("fibers/sync/wait_group.zig");
 
     // _ = @import("runtime/concurrent/concurrent_runtime.zig");
     // _ = @import("runtime/concurrent/monotonic_clock.zig");
