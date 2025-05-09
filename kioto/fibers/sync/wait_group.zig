@@ -86,8 +86,8 @@ const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualR
 
 const Allocator = std.mem.Allocator;
 const Mutex = @import("mutex.zig").Mutex;
-const Task = @import("../../task/task.zig").Task;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 const ThreadWaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TaskWaiter = struct {
