@@ -11,7 +11,7 @@ comptime {
     _ = @import("fibers/core/fiber.zig");
     _ = @import("fibers/core/machine/context.zig");
     _ = @import("fibers/core/machine/stack.zig");
-    // _ = @import("fibers/sync/buffered_channel.zig");
+    _ = @import("fibers/sync/buffered_channel.zig");
     _ = @import("fibers/sync/event.zig");
     _ = @import("fibers/sync/mutex.zig");
     _ = @import("fibers/sync/unbuffered_channel.zig");
@@ -39,9 +39,8 @@ comptime {
 }
 
 // TODO:
-// 1. Channel
-// 2. Future
-// 3. Adapt fibers for futures via Await and FutureAwaiter
-// 4. Stack Pool
-// 5. Boxed Task
-// 6. Runtime adapters? Strand, Priority?
+// 1. Future
+// 2. Adapt fibers for futures via Await and FutureAwaiter
+// 3. Stack Pool
+// 4. Boxed Task
+// 5. Runtime adapters? Strand, Priority?

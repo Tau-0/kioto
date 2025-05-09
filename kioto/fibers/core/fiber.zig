@@ -91,30 +91,14 @@ const testing = std.testing;
 const ConcurrentRuntime = @import("../../runtime/concurrent/concurrent_runtime.zig").ConcurrentRuntime;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
-const TaskA = struct {
+const TestRunnable = struct {
     wg: *WaitGroup,
 
-    pub fn task(self: *TaskA) Task {
+    pub fn task(self: *TestRunnable) Task {
         return Task.init(self);
     }
 
-    pub fn run(self: *TaskA) void {
-        std.debug.print("2\n", .{});
-        std.debug.print("5\n", .{});
-        self.wg.done();
-    }
-};
-
-const TaskB = struct {
-    wg: *WaitGroup,
-
-    pub fn task(self: *TaskB) Task {
-        return Task.init(self);
-    }
-
-    pub fn run(self: *TaskB) void {
-        std.debug.print("1\n", .{});
-        std.debug.print("4\n", .{});
+    pub fn run(self: *TestRunnable) void {
         self.wg.done();
     }
 };
@@ -133,13 +117,12 @@ test "basic" {
 
     var wg: WaitGroup = .{};
 
-    var t1: TaskA = .{ .wg = &wg };
+    var task: TestRunnable = .{ .wg = &wg };
     var fiber1: Fiber = .{};
-    try fiber1.init(runtime.runtime(), t1.task(), allocator, false);
+    try fiber1.init(runtime.runtime(), task.task(), allocator, false);
 
-    var t2: TaskB = .{ .wg = &wg };
     var fiber2: Fiber = .{};
-    try fiber2.init(runtime.runtime(), t2.task(), allocator, false);
+    try fiber2.init(runtime.runtime(), task.task(), allocator, false);
 
     wg.add(2);
     fiber1.submitTask();

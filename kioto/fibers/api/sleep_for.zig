@@ -38,7 +38,6 @@ const Task = @import("../../task/task.zig").Task;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
     wg: *WaitGroup = undefined,
 
     pub fn task(self: *TestRunnable) Task {
@@ -47,7 +46,6 @@ const TestRunnable = struct {
 
     pub fn run(self: *TestRunnable) void {
         sleepFor(.{ .microseconds = 1 * std.time.us_per_s });
-        std.debug.print("{}\n", .{self.x});
         self.wg.done();
     }
 };
@@ -65,8 +63,7 @@ test "basic" {
     defer rt.stop();
 
     var wg: WaitGroup = .{};
-    const x: i32 = 0;
-    var task: TestRunnable = .{ .x = x, .wg = &wg };
+    var task: TestRunnable = .{ .wg = &wg };
 
     wg.add(2);
     try spawn(rt.runtime(), task.task(), allocator);

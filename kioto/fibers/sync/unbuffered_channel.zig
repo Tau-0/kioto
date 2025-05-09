@@ -51,7 +51,7 @@ fn State(comptime T: type) type {
 
         wait_queue: List(ChannelAwaiter) = .{},
         guard: Spinlock = .{},
-        state: QueueState = QueueState.OnlyReceivers,
+        state: QueueState = .OnlyReceivers,
 
         pub fn init(self: *Self) void {
             self.wait_queue.init();
@@ -63,7 +63,7 @@ fn State(comptime T: type) type {
 
         pub fn send(self: *Self, value: T) void {
             self.guard.lock();
-            if (self.wait_queue.nonEmpty() and self.state == QueueState.OnlyReceivers) {
+            if (self.wait_queue.nonEmpty() and self.state == .OnlyReceivers) {
                 var awaiter: *ChannelAwaiter = self.wait_queue.popFrontUnsafe();
                 awaiter.setValue(value);
                 self.guard.unlock();
@@ -73,13 +73,13 @@ fn State(comptime T: type) type {
 
             var awaiter: ChannelAwaiter = .{ .state = self, .guard = &self.guard };
             awaiter.setValue(value);
-            self.state = QueueState.OnlySenders;
+            self.state = .OnlySenders;
             FiberApi.suspendFiber(awaiter.awaiter());
         }
 
         pub fn receive(self: *Self) T {
             self.guard.lock();
-            if (self.wait_queue.nonEmpty() and self.state == QueueState.OnlySenders) {
+            if (self.wait_queue.nonEmpty() and self.state == .OnlySenders) {
                 var awaiter: *ChannelAwaiter = self.wait_queue.popFrontUnsafe();
                 self.guard.unlock();
                 const value: T = awaiter.getValue();
@@ -88,7 +88,7 @@ fn State(comptime T: type) type {
             }
 
             var awaiter: ChannelAwaiter = .{ .state = self, .guard = &self.guard };
-            self.state = QueueState.OnlyReceivers;
+            self.state = .OnlyReceivers;
             FiberApi.suspendFiber(awaiter.awaiter());
             return awaiter.getValue();
         }
@@ -168,20 +168,6 @@ const TestRunnable = struct {
     }
 };
 
-const Starter = struct {
-    chan: *UnbufferedChannel(i32) = undefined,
-    wg: *WaitGroup = undefined,
-
-    pub fn task(self: *Starter) Task {
-        return Task.init(self);
-    }
-
-    pub fn run(self: *Starter) void {
-        self.chan.send(0);
-        self.wg.done();
-    }
-};
-
 test "ping-pong" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
@@ -196,6 +182,7 @@ test "ping-pong" {
 
     var channel: UnbufferedChannel(i32) = .{};
     channel.init();
+    defer channel.deinit();
 
     var wg: WaitGroup = .{};
 
