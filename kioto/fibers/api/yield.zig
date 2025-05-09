@@ -30,16 +30,16 @@ const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const ConcurrentRuntime = @import("../../runtime/concurrent/concurrent_runtime.zig").ConcurrentRuntime;
-const Runnable = @import("../../task/task.zig").Runnable;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TestRunnable = struct {
     x: *i32 = undefined,
     wg: *WaitGroup = undefined,
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TestRunnable) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TestRunnable) void {
@@ -62,7 +62,8 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ConcurrentRuntime = ConcurrentRuntime.init(1, allocator);
+    var rt: ConcurrentRuntime = .{};
+    rt.init(1, allocator);
     defer rt.deinit();
 
     rt.start();
@@ -73,7 +74,7 @@ test "basic" {
     var task: TestRunnable = .{ .x = &x, .wg = &wg };
 
     wg.add(2);
-    try spawn(rt.runtime(), task.runnable(), allocator);
-    try spawn(rt.runtime(), task.runnable(), allocator);
+    try spawn(rt.runtime(), task.task(), allocator);
+    try spawn(rt.runtime(), task.task(), allocator);
     wg.wait();
 }

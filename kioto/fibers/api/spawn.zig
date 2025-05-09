@@ -2,14 +2,14 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Fiber = @import("../core/fiber.zig").Fiber;
-const Runnable = @import("../../task/task.zig").Runnable;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 
-pub fn spawn(runtime: Runtime, task: Runnable, allocator: Allocator) !void {
+pub fn spawn(runtime: Runtime, task: Task, allocator: Allocator) !void {
     var fiber: *Fiber = try allocator.create(Fiber);
     errdefer allocator.destroy(fiber);
 
-    fiber.* = try Fiber.init(runtime, task, allocator, true);
+    try fiber.init(runtime, task, allocator, true);
     errdefer fiber.deinit();
 
     fiber.submitTask();
@@ -22,14 +22,14 @@ const testing = std.testing;
 const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualRuntime;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
+    done: bool = false,
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TestRunnable) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TestRunnable) void {
-        std.debug.print("{}\n", .{self.x});
+        self.done = true;
     }
 };
 
@@ -38,13 +38,15 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var manual: ManualRuntime = ManualRuntime.init(allocator);
+    var manual: ManualRuntime = .{};
+    manual.init(allocator);
     defer manual.deinit();
 
-    var task: TestRunnable = .{ .x = 100 };
+    var task: TestRunnable = .{};
 
-    try spawn(manual.runtime(), task.runnable(), allocator);
+    try spawn(manual.runtime(), task.task(), allocator);
 
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
-    testing.expect(manual.isEmpty()) catch @panic("TEST FAIL");
+    try testing.expect(manual.runOne());
+    try testing.expect(manual.isEmpty());
+    try testing.expect(task.done);
 }

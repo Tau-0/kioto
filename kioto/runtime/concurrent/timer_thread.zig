@@ -3,20 +3,19 @@ const std = @import("std");
 const time = @import("../time.zig");
 
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 const Atomic = std.atomic.Value;
 const Clock = @import("monotonic_clock.zig").MonotonicClock;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Mutex = std.Thread.Mutex;
 const Order = std.math.Order;
 const PriorityQueue = std.PriorityQueue;
-const Runnable = @import("../../task/task.zig").Runnable;
 const Thread = std.Thread;
 const ThreadPool = @import("thread_pool.zig").ThreadPool;
 
 const Context = struct {};
 
 const TimedTask = struct {
-    handler: Runnable = undefined,
+    handler: *IntrusiveTask = undefined,
     deadline: time.TimePoint = undefined,
 };
 
@@ -60,12 +59,12 @@ pub const TimerThread = struct {
         self.poller_thread.?.join();
     }
 
-    pub fn submit(self: *Self, handler: Runnable, delay: Duration) !void {
+    pub fn submit(self: *Self, handler: *IntrusiveTask, delay: Duration) !void {
         const deadline: TimePoint = .{ .microseconds = self.clock.now().microseconds + delay.microseconds };
         try self.push(handler, deadline);
     }
 
-    fn push(self: *Self, handler: Runnable, deadline: TimePoint) !void {
+    fn push(self: *Self, handler: *IntrusiveTask, deadline: TimePoint) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.tasks.add(.{ .handler = handler, .deadline = deadline });
@@ -81,18 +80,18 @@ pub const TimerThread = struct {
         return self.tasks.peek().?.deadline;
     }
 
-    fn submitReadyTasks(self: *Self) !void {
+    fn submitReadyTasks(self: *Self) void {
         const now = self.clock.now();
         self.mutex.lock();
         defer self.mutex.unlock();
         while (!self.isEmpty() and now.microseconds >= self.nextDeadline().microseconds) {
-            try self.thread_pool.submit(self.tasks.remove().handler);
+            self.thread_pool.submit(self.tasks.remove().handler);
         }
     }
 
     fn pollerRoutine(self: *Self) void {
         while (!self.stopped.load(.seq_cst)) {
-            self.submitReadyTasks() catch |err| std.debug.panic("Can not submit ready tasks: {}\n", .{err});
+            self.submitReadyTasks();
             Thread.sleep(PollTimeout);
         }
     }
@@ -102,21 +101,27 @@ pub const TimerThread = struct {
 
 const testing = std.testing;
 
+const Task = @import("../../task/task.zig").Task;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
-    wg: *WaitGroup,
+    data: *u8 = undefined,
+    wg: *WaitGroup = undefined,
     done: Atomic(bool) = .{ .raw = false },
+    hook: IntrusiveTask = .{},
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
     pub fn run(self: *TestRunnable) void {
         self.done.store(true, .seq_cst);
-        std.debug.print("{}\n", .{self.x});
+        self.data.* += 1;
         self.wg.done();
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
@@ -125,7 +130,8 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var pool = try ThreadPool.init(1, allocator);
+    var pool: ThreadPool = .{};
+    try pool.init(1, allocator);
     defer pool.deinit();
 
     try pool.start();
@@ -134,9 +140,14 @@ test "basic" {
     var wg: WaitGroup = .{};
     wg.add(3);
 
-    var task1: TestRunnable = .{ .x = 10, .wg = &wg };
-    var task2: TestRunnable = .{ .x = 20, .wg = &wg };
-    var task3: TestRunnable = .{ .x = 30, .wg = &wg };
+    var data: u8 = 0;
+    var task1: TestRunnable = .{ .data = &data, .wg = &wg };
+    var task2: TestRunnable = .{ .data = &data, .wg = &wg };
+    var task3: TestRunnable = .{ .data = &data, .wg = &wg };
+
+    task1.init();
+    task2.init();
+    task3.init();
 
     var timer: TimerThread = TimerThread.init(&pool, allocator);
     defer timer.deinit();
@@ -144,9 +155,9 @@ test "basic" {
     try timer.start();
     defer timer.stop();
 
-    try timer.submit(task1.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    try timer.submit(task2.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    try timer.submit(task3.runnable(), .{ .microseconds = 2 * std.time.us_per_s });
+    try timer.submit(task1.getHook(), .{ .microseconds = 1 * std.time.us_per_s });
+    try timer.submit(task2.getHook(), .{ .microseconds = 1 * std.time.us_per_s });
+    try timer.submit(task3.getHook(), .{ .microseconds = 2 * std.time.us_per_s });
 
     {
         testing.expect(timer.tasks.count() == 3) catch @panic("TEST FAIL");
@@ -162,5 +173,6 @@ test "basic" {
     }
 
     wg.wait();
-    testing.expect(pool.tasks.buffer.len == 0) catch @panic("TEST FAIL");
+    testing.expect(pool.tasks.task_queue.isEmpty()) catch @panic("TEST FAIL");
+    try testing.expect(data == 3);
 }

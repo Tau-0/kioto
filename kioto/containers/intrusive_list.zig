@@ -12,11 +12,15 @@ pub fn IntrusiveList(comptime T: type) type {
             right: ?*Node = null, // to tail
 
             pub fn isLinked(self: *const Node) bool {
-                return self.left != null;
+                return !self.isUnlinked();
+            }
+
+            pub fn isUnlinked(self: *const Node) bool {
+                return self.left == null and self.right == null;
             }
 
             pub fn linkAfter(self: *Node, target: *Node) void {
-                assert(!self.isLinked());
+                assert(self.isUnlinked());
                 self.left = target;
                 self.right = target.right;
 
@@ -27,7 +31,7 @@ pub fn IntrusiveList(comptime T: type) type {
             }
 
             pub fn linkBefore(self: *Node, target: *Node) void {
-                assert(!self.isLinked());
+                assert(self.isUnlinked());
                 self.left = target.left;
                 self.right = target;
 
@@ -58,8 +62,7 @@ pub fn IntrusiveList(comptime T: type) type {
         sentinel: Node = .{},
 
         pub fn init(self: *Self) void {
-            comptime assert(@hasField(T, "node"));
-            comptime assert(@FieldType(T, "node") == Self.Node);
+            comptime assert(@hasField(T, "node") and @FieldType(T, "node") == Self.Node);
             self.sentinel.left = &self.sentinel;
             self.sentinel.right = &self.sentinel;
         }

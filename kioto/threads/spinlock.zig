@@ -28,20 +28,22 @@ pub const Spinlock = struct {
 
 const testing = std.testing;
 
-const Runnable = @import("../task/task.zig").Runnable;
+const IntrusiveTask = @import("../task/intrusive_task.zig").IntrusiveTask;
+const Task = @import("../task/task.zig").Task;
 const ThreadPool = @import("../runtime/concurrent/thread_pool.zig").ThreadPool;
 const WaitGroup = @import("wait_group.zig").WaitGroup;
 
-const Task = struct {
+const TestRunnable = struct {
     counter: *i64 = undefined,
     spinlock: *Spinlock = undefined,
     wg: *WaitGroup = undefined,
+    hook: IntrusiveTask = .{},
 
-    pub fn runnable(self: *Task) Runnable {
-        return Runnable.init(self);
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
-    pub fn run(self: *Task) void {
+    pub fn run(self: *TestRunnable) void {
         for (0..1_000_000) |_| {
             self.spinlock.lock();
             defer self.spinlock.unlock();
@@ -49,28 +51,38 @@ const Task = struct {
         }
         self.wg.done();
     }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
+    }
 };
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     const allocator = gpa.allocator();
 
-    var tp: ThreadPool = try ThreadPool.init(6, allocator);
-    try tp.start();
+    var tp: ThreadPool = .{};
+    try tp.init(6, allocator);
     defer tp.deinit();
+
+    try tp.start();
     defer tp.stop();
 
     var counter: i64 = 0;
     var spinlock: Spinlock = .{};
     var wg: WaitGroup = .{};
-    var task: Task = .{ .counter = &counter, .spinlock = &spinlock, .wg = &wg };
-    const runnable: Runnable = task.runnable();
-    wg.add(6);
 
-    for (0..6) |_| {
-        try tp.submit(runnable);
+    var tasks: [6]TestRunnable = undefined;
+    for (0..6) |i| {
+        tasks[i] = .{ .counter = &counter, .spinlock = &spinlock, .wg = &wg };
+        tasks[i].init();
+        wg.add(1);
+    }
+
+    for (0..6) |i| {
+        tp.submit(tasks[i].getHook());
     }
 
     wg.wait();
-    testing.expect(counter == 6_000_000) catch @panic("TEST FAIL");
+    try testing.expect(counter == 6_000_000);
 }

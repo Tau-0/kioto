@@ -6,25 +6,25 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Clock = @import("manual_clock.zig").ManualClock;
 const Executor = @import("manual_executor.zig").ManualExecutor;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Runtime = @import("../runtime.zig").Runtime;
-const Runnable = @import("../../task/task.zig").Runnable;
 const TimerQueue = @import("timer_queue.zig").TimerQueue;
 
 pub const ManualRuntime = struct {
+    const Self = @This();
+
     const TimePoint = time.TimePoint;
     const Duration = time.Duration;
 
-    executor: Executor = undefined,
+    executor: Executor = .{},
     timers: TimerQueue = undefined,
     clock: Clock = .{},
     allocator: Allocator = undefined,
 
-    pub fn init(allocator: Allocator) ManualRuntime {
-        return .{
-            .executor = Executor.init(allocator),
-            .timers = TimerQueue.init(allocator),
-            .allocator = allocator,
-        };
+    pub fn init(self: *Self, allocator: Allocator) void {
+        self.executor.init();
+        self.timers = TimerQueue.init(allocator);
+        self.allocator = allocator;
     }
 
     pub fn deinit(self: *ManualRuntime) void {
@@ -33,13 +33,13 @@ pub const ManualRuntime = struct {
     }
 
     // Runtime interface
-    pub fn submitTask(self: *ManualRuntime, runnable: Runnable) void {
-        self.executor.submit(runnable) catch unreachable;
+    pub fn submitTask(self: *ManualRuntime, task: *IntrusiveTask) void {
+        self.executor.submit(task);
     }
 
-    pub fn submitTimer(self: *ManualRuntime, runnable: Runnable, delay: Duration) void {
+    pub fn submitTimer(self: *ManualRuntime, task: *IntrusiveTask, delay: Duration) void {
         const deadline: TimePoint = .{ .microseconds = self.clock.now().microseconds + delay.microseconds };
-        self.timers.push(runnable, deadline) catch unreachable;
+        self.timers.push(task, deadline) catch unreachable;
     }
 
     pub fn runtime(self: *ManualRuntime) Runtime {
@@ -62,7 +62,7 @@ pub const ManualRuntime = struct {
     // Timers
     pub fn advanceClock(self: *ManualRuntime, delta: Duration) usize {
         self.clock.advance(delta);
-        return self.submitReadyTimers();
+        return self.submitReadyTasks();
     }
 
     pub fn setClockToNextDeadline(self: *ManualRuntime) usize {
@@ -80,7 +80,7 @@ pub const ManualRuntime = struct {
     }
 
     fn submitReadyTasks(self: *ManualRuntime) usize {
-        var tasks: ArrayList(Runnable) = self.timers.takeReadyTasks(self.clock.now(), self.allocator) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
+        var tasks: ArrayList(*IntrusiveTask) = self.timers.takeReadyTasks(self.clock.now(), self.allocator) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
         defer tasks.deinit();
         for (tasks.items) |t| {
             self.submitTask(t);
@@ -91,17 +91,24 @@ pub const ManualRuntime = struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Task = @import("../../task/task.zig").Task;
+
 const testing = std.testing;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
+    done: bool = false,
+    hook: IntrusiveTask = .{},
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
     pub fn run(self: *TestRunnable) void {
-        std.debug.print("{}\n", .{self.x});
+        self.done = true;
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
@@ -110,31 +117,40 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var manual: ManualRuntime = ManualRuntime.init(allocator);
+    var manual: ManualRuntime = .{};
+    manual.init(allocator);
     defer manual.deinit();
 
-    var task1: TestRunnable = .{ .x = 100 };
-    var task2: TestRunnable = .{ .x = 200 };
-    var task3: TestRunnable = .{ .x = 300 };
+    var tasks: [5]TestRunnable = undefined;
 
-    manual.submitTask(task1.runnable());
-    manual.submitTask(task2.runnable());
+    for (0..5) |i| {
+        tasks[i] = .{};
+        tasks[i].init();
+    }
 
-    manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    manual.submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    manual.submitTimer(task3.runnable(), .{ .microseconds = 2000 });
+    manual.submitTask(tasks[0].getHook());
+    manual.submitTask(tasks[1].getHook());
 
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+    manual.submitTimer(tasks[2].getHook(), .{ .microseconds = 1000 });
+    manual.submitTimer(tasks[3].getHook(), .{ .microseconds = 1000 });
+    manual.submitTimer(tasks[4].getHook(), .{ .microseconds = 2000 });
 
-    testing.expect(manual.setClockToNextDeadline() == 2) catch @panic("TEST FAIL");
-    testing.expect(manual.timers.tasks.count() == 1) catch @panic("TEST FAIL");
+    try testing.expect(manual.runOne());
+    try testing.expect(tasks[0].done);
+    try testing.expect(manual.runOne());
+    try testing.expect(tasks[1].done);
 
-    testing.expect(manual.runAll() == 2) catch @panic("TEST FAIL");
+    try testing.expect(manual.setClockToNextDeadline() == 2);
+    try testing.expect(manual.timers.tasks.count() == 1);
 
-    testing.expect(manual.setClockToNextDeadline() == 1) catch @panic("TEST FAIL");
-    testing.expect(manual.timers.tasks.count() == 0) catch @panic("TEST FAIL");
+    try testing.expect(manual.runAll() == 2);
+    try testing.expect(tasks[2].done);
+    try testing.expect(tasks[3].done);
 
-    testing.expect(manual.runAll() == 1) catch @panic("TEST FAIL");
-    testing.expect(manual.isEmpty()) catch @panic("TEST FAIL");
+    try testing.expect(manual.setClockToNextDeadline() == 1);
+    try testing.expect(manual.timers.tasks.count() == 0);
+
+    try testing.expect(manual.runAll() == 1);
+    try testing.expect(manual.isEmpty());
+    try testing.expect(tasks[4].done);
 }

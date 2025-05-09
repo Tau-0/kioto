@@ -3,8 +3,7 @@ const std = @import("std");
 const time = @import("../time.zig");
 
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
-const Runnable = @import("../../task/task.zig").Runnable;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Runtime = @import("../runtime.zig").Runtime;
 const ThreadPool = @import("thread_pool.zig").ThreadPool;
 const TimerThread = @import("timer_thread.zig").TimerThread;
@@ -12,15 +11,13 @@ const TimerThread = @import("timer_thread.zig").TimerThread;
 pub const ConcurrentRuntime = struct {
     const Self = @This();
 
-    pool: ThreadPool = undefined,
+    pool: ThreadPool = .{},
     timer_thread: ?TimerThread = null,
     allocator: Allocator = undefined,
 
-    pub fn init(worker_count: usize, allocator: Allocator) Self {
-        return .{
-            .pool = ThreadPool.init(worker_count, allocator) catch unreachable,
-            .allocator = allocator,
-        };
+    pub fn init(self: *Self, worker_count: usize, allocator: Allocator) void {
+        self.pool.init(worker_count, allocator) catch unreachable;
+        self.allocator = allocator;
     }
 
     pub fn deinit(self: *Self) void {
@@ -50,13 +47,13 @@ pub const ConcurrentRuntime = struct {
     }
 
     // Runtime interface
-    pub fn submitTask(self: *Self, runnable: Runnable) void {
-        self.pool.submit(runnable) catch unreachable;
+    pub fn submitTask(self: *Self, task: *IntrusiveTask) void {
+        self.pool.submit(task);
     }
 
-    pub fn submitTimer(self: *Self, runnable: Runnable, delay: time.Duration) void {
+    pub fn submitTimer(self: *Self, task: *IntrusiveTask, delay: time.Duration) void {
         std.debug.assert(self.timer_thread != null);
-        self.timer_thread.?.submit(runnable, delay) catch unreachable;
+        self.timer_thread.?.submit(task, delay) catch unreachable;
     }
 
     pub fn runtime(self: *Self) Runtime {
@@ -72,15 +69,25 @@ pub const ConcurrentRuntime = struct {
 
 const testing = std.testing;
 
-const TestRunnable = struct {
-    x: i32 = undefined,
+const Task = @import("../../task/task.zig").Task;
+const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+const TestRunnable = struct {
+    data: *u8 = undefined,
+    wg: *WaitGroup = undefined,
+    hook: IntrusiveTask = .{},
+
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
     pub fn run(self: *TestRunnable) void {
-        std.debug.print("{}\n", .{self.x});
+        self.data.* += 1;
+        self.wg.done();
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
@@ -89,22 +96,30 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var runtime: ConcurrentRuntime = ConcurrentRuntime.init(2, allocator);
+    var runtime: ConcurrentRuntime = .{};
+    runtime.init(1, allocator);
     defer runtime.deinit();
 
     runtime.allowTimers().start();
     defer runtime.stop();
 
-    var task1: TestRunnable = .{ .x = 100 };
-    var task2: TestRunnable = .{ .x = 200 };
-    var task3: TestRunnable = .{ .x = 300 };
+    var wg: WaitGroup = .{};
+    var data: u8 = 0;
 
-    runtime.submitTask(task1.runnable());
-    runtime.submitTask(task2.runnable());
+    var tasks: [5]TestRunnable = undefined;
+    for (0..5) |i| {
+        tasks[i] = .{ .data = &data, .wg = &wg };
+        tasks[i].init();
+        wg.add(1);
+    }
 
-    runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    runtime.submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    runtime.submitTimer(task3.runnable(), .{ .microseconds = 2 * std.time.us_per_s });
+    runtime.submitTask(tasks[0].getHook());
+    runtime.submitTask(tasks[1].getHook());
 
-    std.Thread.sleep(3 * std.time.ns_per_s);
+    runtime.submitTimer(tasks[2].getHook(), .{ .microseconds = 0.5 * std.time.us_per_s });
+    runtime.submitTimer(tasks[3].getHook(), .{ .microseconds = 0.5 * std.time.us_per_s });
+    runtime.submitTimer(tasks[4].getHook(), .{ .microseconds = 1 * std.time.us_per_s });
+
+    wg.wait();
+    try testing.expect(data == 5);
 }

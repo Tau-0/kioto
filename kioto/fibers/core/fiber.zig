@@ -4,25 +4,28 @@ const Allocator = std.mem.Allocator;
 const Awaiter = @import("awaiter.zig").Awaiter;
 const Coroutine = @import("coroutine.zig").Coroutine;
 const Duration = @import("../../runtime/time.zig").Duration;
-const Runnable = @import("../../task/task.zig").Runnable;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 
 threadlocal var current_fiber: ?*Fiber = null;
 
 pub const Fiber = struct {
+    const Self = @This();
+
     coro: Coroutine = undefined,
     runtime: Runtime = undefined,
+    hook: IntrusiveTask = .{},
     awaiter: ?Awaiter = null,
     allocator: Allocator = undefined,
     on_heap: bool = undefined,
 
-    pub fn init(runtime: Runtime, task: Runnable, allocator: Allocator, on_heap: bool) !Fiber {
-        return .{
-            .coro = try Coroutine.init(task, allocator),
-            .runtime = runtime,
-            .allocator = allocator,
-            .on_heap = on_heap,
-        };
+    pub fn init(self: *Self, runtime: Runtime, task: Task, allocator: Allocator, on_heap: bool) !void {
+        self.coro = try Coroutine.init(task, allocator);
+        self.runtime = runtime;
+        self.hook.init(Task.init(self));
+        self.allocator = allocator;
+        self.on_heap = on_heap;
     }
 
     pub fn deinit(self: *Fiber) void {
@@ -33,11 +36,11 @@ pub const Fiber = struct {
     }
 
     pub fn submitTask(self: *Fiber) void {
-        self.runtime.submitTask(self.runnable());
+        self.runtime.submitTask(&self.hook);
     }
 
     pub fn submitTimer(self: *Fiber, delay: Duration) void {
-        self.runtime.submitTimer(self.runnable(), delay);
+        self.runtime.submitTimer(&self.hook, delay);
     }
 
     pub fn resumeFiber(self: *Fiber) void {
@@ -75,11 +78,7 @@ pub const Fiber = struct {
         }
     }
 
-    // Runnable impl
-    fn runnable(self: *Fiber) Runnable {
-        return Runnable.init(self);
-    }
-
+    // Task impl
     pub fn run(self: *Fiber) void {
         self.resumeFiber();
     }
@@ -95,8 +94,8 @@ const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 const TaskA = struct {
     wg: *WaitGroup,
 
-    pub fn runnable(self: *TaskA) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskA) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TaskA) void {
@@ -109,8 +108,8 @@ const TaskA = struct {
 const TaskB = struct {
     wg: *WaitGroup,
 
-    pub fn runnable(self: *TaskB) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskB) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TaskB) void {
@@ -125,7 +124,8 @@ test "basic" {
     const allocator = gpa.allocator();
     defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
 
-    var runtime: ConcurrentRuntime = ConcurrentRuntime.init(1, allocator);
+    var runtime: ConcurrentRuntime = .{};
+    runtime.init(1, allocator);
     defer runtime.deinit();
 
     runtime.start();
@@ -134,15 +134,17 @@ test "basic" {
     var wg: WaitGroup = .{};
 
     var t1: TaskA = .{ .wg = &wg };
-    var fiber1 = try Fiber.init(runtime.runtime(), t1.runnable(), allocator, false);
+    var fiber1: Fiber = .{};
+    try fiber1.init(runtime.runtime(), t1.task(), allocator, false);
 
     var t2: TaskB = .{ .wg = &wg };
-    var fiber2 = try Fiber.init(runtime.runtime(), t2.runnable(), allocator, false);
+    var fiber2: Fiber = .{};
+    try fiber2.init(runtime.runtime(), t2.task(), allocator, false);
 
     wg.add(2);
     fiber1.submitTask();
     fiber2.submitTask();
     wg.wait();
-    testing.expect(fiber1.isCompleted()) catch @panic("TEST FAIL");
-    testing.expect(fiber2.isCompleted()) catch @panic("TEST FAIL");
+    try testing.expect(fiber1.isCompleted());
+    try testing.expect(fiber2.isCompleted());
 }

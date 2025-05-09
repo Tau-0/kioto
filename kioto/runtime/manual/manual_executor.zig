@@ -1,42 +1,33 @@
 const std = @import("std");
 
-const Allocator = std.mem.Allocator;
-const DoublyLinkedList = std.DoublyLinkedList;
-const Runnable = @import("../../task/task.zig").Runnable;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
+const List = @import("../../containers/intrusive_list.zig").IntrusiveList;
 
 pub const ManualExecutor = struct {
-    const Queue = DoublyLinkedList(Runnable);
-    const Node = Queue.Node;
+    const Self = @This();
 
-    tasks: Queue = .{},
-    allocator: Allocator = undefined,
+    const TaskQueue = List(IntrusiveTask);
+    const Node = TaskQueue.Node;
 
-    pub fn init(allocator: Allocator) ManualExecutor {
-        return .{
-            .allocator = allocator,
-        };
+    tasks: TaskQueue = .{},
+
+    pub fn init(self: *Self) void {
+        self.tasks.init();
     }
 
     pub fn deinit(self: *ManualExecutor) void {
-        while (!self.isEmpty()) {
-            const node: *Node = self.tasks.popFirst().?;
-            self.allocator.destroy(node);
-        }
+        std.debug.assert(self.isEmpty());
     }
 
-    pub fn submit(self: *ManualExecutor, runnable: Runnable) !void {
-        var node: *Node = try self.allocator.create(Node);
-        node.data = runnable;
-        self.tasks.append(node);
+    pub fn submit(self: *ManualExecutor, task: *IntrusiveTask) void {
+        self.tasks.pushBack(task.getNode());
     }
 
     pub fn runOne(self: *ManualExecutor) bool {
         var done: bool = false;
         if (!self.isEmpty()) {
-            const node: *Node = self.tasks.popFirst().?;
-            var runnable: Runnable = node.data;
-            self.allocator.destroy(node);
-            runnable.run();
+            var task: *IntrusiveTask = self.tasks.popFrontUnsafe();
+            task.run();
             done = true;
         }
         return done;
@@ -59,7 +50,7 @@ pub const ManualExecutor = struct {
     }
 
     pub fn isEmpty(self: *const ManualExecutor) bool {
-        return self.tasks.len == 0;
+        return self.tasks.isEmpty();
     }
 };
 
@@ -67,28 +58,44 @@ pub const ManualExecutor = struct {
 
 const testing = std.testing;
 
+const Task = @import("../../task/task.zig").Task;
+
 const TestRunnable = struct {
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    data: *u8 = undefined,
+    hook: IntrusiveTask = .{},
+
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
-    pub fn run(_: *TestRunnable) void {
-        std.debug.print("Hello from thread {}!\n", .{std.Thread.getCurrentId()});
+    pub fn run(self: *TestRunnable) void {
+        self.data.* += 1;
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
 test "basic" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
-    const allocator = gpa.allocator();
+    var manual: ManualExecutor = .{};
+    manual.init();
+    defer manual.deinit();
 
-    var manual: ManualExecutor = ManualExecutor.init(allocator);
-    var task: TestRunnable = .{};
+    var data: u8 = 0;
 
-    try manual.submit(task.runnable());
-    try manual.submit(task.runnable());
+    var task1: TestRunnable = .{ .data = &data };
+    var task2: TestRunnable = .{ .data = &data };
 
-    testing.expect(manual.tasks.len == 2) catch @panic("TEST FAIL");
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+    task1.init();
+    task2.init();
+
+    manual.submit(task1.getHook());
+    manual.submit(task2.getHook());
+
+    try testing.expect(manual.runOne());
+    try testing.expect(data == 1);
+    try testing.expect(manual.runOne());
+    try testing.expect(data == 2);
+    try testing.expect(manual.isEmpty());
 }

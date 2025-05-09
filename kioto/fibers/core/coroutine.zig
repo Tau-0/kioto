@@ -2,18 +2,18 @@ const std = @import("std");
 
 const Context = @import("machine/context.zig").Context;
 const Stack = @import("machine/stack.zig").Stack;
-const Runnable = @import("../../task/task.zig").Runnable;
+const Task = @import("../../task/task.zig").Task;
 
 threadlocal var current_coroutine: ?*Coroutine = null;
 
 pub const Coroutine = struct {
-    task: Runnable = undefined,
+    task: Task = undefined,
     stack: Stack = undefined,
     self_context: Context = undefined,
     caller_context: Context = undefined,
     is_completed: bool = false,
 
-    pub fn init(task: Runnable, allocator: std.mem.Allocator) !Coroutine {
+    pub fn init(task: Task, allocator: std.mem.Allocator) !Coroutine {
         var result: Coroutine = .{
             .task = task,
             .stack = try Stack.init(16, allocator),
@@ -63,8 +63,8 @@ pub const Coroutine = struct {
 const testing = std.testing;
 
 const TaskA = struct {
-    pub fn runnable(self: *TaskA) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskA) Task {
+        return Task.init(self);
     }
 
     pub fn run(_: *TaskA) void {
@@ -77,8 +77,8 @@ const TaskA = struct {
 const TaskB = struct {
     coro: *Coroutine,
 
-    pub fn runnable(self: *TaskB) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskB) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TaskB) void {
@@ -92,22 +92,22 @@ const TaskB = struct {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
     var t1: TaskA = .{};
-    var coro1 = try Coroutine.init(t1.runnable(), allocator);
+    var coro1 = try Coroutine.init(t1.task(), allocator);
+    defer coro1.deinit();
 
     var t2: TaskB = .{ .coro = &coro1 };
-    var coro2 = try Coroutine.init(t2.runnable(), allocator);
-
-    defer testing.expect(!gpa.detectLeaks()) catch unreachable;
-    defer coro1.deinit();
+    var coro2 = try Coroutine.init(t2.task(), allocator);
     defer coro2.deinit();
-    defer testing.expect(coro1.isCompleted()) catch unreachable;
-    defer testing.expect(coro2.isCompleted()) catch unreachable;
 
     coro2.resumeCoro();
     std.debug.print("3\n", .{});
     coro2.resumeCoro();
     std.debug.print("6\n", .{});
+
+    try testing.expect(coro1.isCompleted());
+    try testing.expect(coro2.isCompleted());
 }

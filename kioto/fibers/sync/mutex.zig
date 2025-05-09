@@ -87,20 +87,20 @@ const ConcurrentRuntime = @import("../../runtime/concurrent/concurrent_runtime.z
 const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualRuntime;
 
 const Allocator = std.mem.Allocator;
-const Runnable = @import("../../task/task.zig").Runnable;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
-const Task = struct {
+const TestRunnable = struct {
     counter: *i64 = undefined,
     mutex: *Mutex = undefined,
     wg: *WaitGroup = undefined,
 
-    pub fn runnable(self: *Task) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TestRunnable) Task {
+        return Task.init(self);
     }
 
-    pub fn run(self: *Task) void {
+    pub fn run(self: *TestRunnable) void {
         for (0..10_000) |_| {
             self.mutex.lock();
             defer self.mutex.unlock();
@@ -115,7 +115,8 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ManualRuntime = ManualRuntime.init(allocator);
+    var rt: ManualRuntime = .{};
+    rt.init(allocator);
     defer rt.deinit();
 
     var mutex: Mutex = .{};
@@ -123,10 +124,10 @@ test "basic" {
 
     var wg: WaitGroup = .{};
     var counter: i64 = 0;
-    var task: Task = .{ .counter = &counter, .mutex = &mutex, .wg = &wg };
+    var task: TestRunnable = .{ .counter = &counter, .mutex = &mutex, .wg = &wg };
 
     wg.add(1);
-    try FiberApi.spawn(rt.runtime(), task.runnable(), allocator);
+    try FiberApi.spawn(rt.runtime(), task.task(), allocator);
     try testing.expect(rt.runAll() == 1);
     wg.wait();
 
@@ -140,7 +141,8 @@ test "stress" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ConcurrentRuntime = ConcurrentRuntime.init(6, allocator);
+    var rt: ConcurrentRuntime = .{};
+    rt.init(6, allocator);
     defer rt.deinit();
 
     rt.start();
@@ -151,11 +153,11 @@ test "stress" {
 
     var wg: WaitGroup = .{};
     var counter: i64 = 0;
-    var task: Task = .{ .counter = &counter, .mutex = &mutex, .wg = &wg };
+    var task: TestRunnable = .{ .counter = &counter, .mutex = &mutex, .wg = &wg };
 
     for (0..6) |_| {
         wg.add(1);
-        try FiberApi.spawn(rt.runtime(), task.runnable(), allocator);
+        try FiberApi.spawn(rt.runtime(), task.task(), allocator);
     }
 
     wg.wait();

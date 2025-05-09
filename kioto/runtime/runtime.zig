@@ -2,29 +2,29 @@ const std = @import("std");
 
 const time = @import("time.zig");
 
-const Runnable = @import("../task/task.zig").Runnable;
+const IntrusiveTask = @import("../task/intrusive_task.zig").IntrusiveTask;
 
 // Interface, any implementation of Runtime should implement (type T here):
 // - fn runtime(self: *T) Runtime
-// - fn submitTask(self: *T, runnable: Runnable) void
-// - fn submitTimer(self: *T, runnable: Runnable, delay: time.Duration) void
+// - fn submitTask(self: *T, task: *IntrusiveTask) void
+// - fn submitTimer(self: *T, task: *IntrusiveTask, delay: time.Duration) void
 pub const Runtime = struct {
     impl: *anyopaque = undefined,
-    submit_task_fn: *const fn (ptr: *anyopaque, runnable: Runnable) void = undefined,
-    submit_timer_fn: *const fn (ptr: *anyopaque, runnable: Runnable, delay: time.Duration) void = undefined,
+    submit_task_fn: *const fn (ptr: *anyopaque, task: *IntrusiveTask) void = undefined,
+    submit_timer_fn: *const fn (ptr: *anyopaque, task: *IntrusiveTask, delay: time.Duration) void = undefined,
 
     pub fn init(impl: anytype) Runtime {
         const T = @TypeOf(impl);
 
         const Impl = struct {
-            pub fn submitTask(ptr: *anyopaque, runnable: Runnable) void {
+            pub fn submitTask(ptr: *anyopaque, task: *IntrusiveTask) void {
                 const self: T = @ptrCast(@alignCast(ptr));
-                self.submitTask(runnable);
+                self.submitTask(task);
             }
 
-            pub fn submitTimer(ptr: *anyopaque, runnable: Runnable, delay: time.Duration) void {
+            pub fn submitTimer(ptr: *anyopaque, task: *IntrusiveTask, delay: time.Duration) void {
                 const self: T = @ptrCast(@alignCast(ptr));
-                self.submitTimer(runnable, delay);
+                self.submitTimer(task, delay);
             }
         };
 
@@ -35,12 +35,12 @@ pub const Runtime = struct {
         };
     }
 
-    pub fn submitTask(self: Runtime, runnable: Runnable) void {
-        self.submit_task_fn(self.impl, runnable);
+    pub fn submitTask(self: Runtime, task: *IntrusiveTask) void {
+        self.submit_task_fn(self.impl, task);
     }
 
-    pub fn submitTimer(self: Runtime, runnable: Runnable, delay: time.Duration) void {
-        self.submit_timer_fn(self.impl, runnable, delay);
+    pub fn submitTimer(self: Runtime, task: *IntrusiveTask, delay: time.Duration) void {
+        self.submit_timer_fn(self.impl, task, delay);
     }
 };
 
@@ -50,16 +50,25 @@ const testing = std.testing;
 
 const Concurrent = @import("concurrent/concurrent_runtime.zig").ConcurrentRuntime;
 const Manual = @import("manual/manual_runtime.zig").ManualRuntime;
+const Task = @import("../task/task.zig").Task;
+const WaitGroup = @import("../threads/wait_group.zig").WaitGroup;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
+    done: bool = false,
+    hook: IntrusiveTask = .{},
+    wg: *WaitGroup = undefined,
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
     pub fn run(self: *TestRunnable) void {
-        std.debug.print("{}\n", .{self.x});
+        self.done = true;
+        self.wg.done();
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
@@ -68,24 +77,33 @@ test "concurrent" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var runtime: Concurrent = Concurrent.init(2, allocator);
+    var runtime: Concurrent = .{};
+    runtime.init(2, allocator);
     defer runtime.deinit();
 
     runtime.allowTimers().start();
     defer runtime.stop();
 
-    var task1: TestRunnable = .{ .x = 100 };
-    var task2: TestRunnable = .{ .x = 200 };
-    var task3: TestRunnable = .{ .x = 300 };
+    var wg: WaitGroup = .{};
+    var tasks: [5]TestRunnable = undefined;
 
-    runtime.runtime().submitTask(task1.runnable());
-    runtime.runtime().submitTask(task2.runnable());
+    for (0..5) |i| {
+        tasks[i] = .{ .wg = &wg };
+        tasks[i].init();
+        wg.add(1);
+    }
 
-    runtime.runtime().submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    runtime.runtime().submitTimer(task3.runnable(), .{ .microseconds = 1 * std.time.us_per_s });
-    runtime.runtime().submitTimer(task3.runnable(), .{ .microseconds = 2 * std.time.us_per_s });
+    runtime.runtime().submitTask(tasks[0].getHook());
+    runtime.runtime().submitTask(tasks[1].getHook());
 
-    std.Thread.sleep(3 * std.time.ns_per_s);
+    runtime.runtime().submitTimer(tasks[2].getHook(), .{ .microseconds = 1 * std.time.us_per_s });
+    runtime.runtime().submitTimer(tasks[3].getHook(), .{ .microseconds = 1 * std.time.us_per_s });
+    runtime.runtime().submitTimer(tasks[4].getHook(), .{ .microseconds = 2 * std.time.us_per_s });
+
+    wg.wait();
+    for (tasks) |t| {
+        try testing.expect(t.done);
+    }
 }
 
 test "manual" {
@@ -93,31 +111,42 @@ test "manual" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var manual: Manual = Manual.init(allocator);
-    defer manual.deinit();
+    var runtime: Manual = .{};
+    runtime.init(allocator);
+    defer runtime.deinit();
 
-    var task1: TestRunnable = .{ .x = 100 };
-    var task2: TestRunnable = .{ .x = 200 };
-    var task3: TestRunnable = .{ .x = 300 };
+    var wg: WaitGroup = .{};
+    var tasks: [5]TestRunnable = undefined;
 
-    manual.runtime().submitTask(task1.runnable());
-    manual.runtime().submitTask(task2.runnable());
+    for (0..5) |i| {
+        tasks[i] = .{ .wg = &wg };
+        tasks[i].init();
+        wg.add(1);
+    }
 
-    manual.runtime().submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    manual.runtime().submitTimer(task3.runnable(), .{ .microseconds = 1000 });
-    manual.runtime().submitTimer(task3.runnable(), .{ .microseconds = 2000 });
+    runtime.runtime().submitTask(tasks[0].getHook());
+    runtime.runtime().submitTask(tasks[1].getHook());
 
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
-    testing.expect(manual.runOne()) catch @panic("TEST FAIL");
+    runtime.runtime().submitTimer(tasks[2].getHook(), .{ .microseconds = 1000 });
+    runtime.runtime().submitTimer(tasks[3].getHook(), .{ .microseconds = 1000 });
+    runtime.runtime().submitTimer(tasks[4].getHook(), .{ .microseconds = 2000 });
 
-    testing.expect(manual.setClockToNextDeadline() == 2) catch @panic("TEST FAIL");
-    testing.expect(manual.timers.tasks.count() == 1) catch @panic("TEST FAIL");
+    try testing.expect(runtime.runOne());
+    try testing.expect(runtime.runOne());
 
-    testing.expect(manual.runAll() == 2) catch @panic("TEST FAIL");
+    try testing.expect(runtime.setClockToNextDeadline() == 2);
+    try testing.expect(runtime.timers.tasks.count() == 1);
 
-    testing.expect(manual.setClockToNextDeadline() == 1) catch @panic("TEST FAIL");
-    testing.expect(manual.timers.tasks.count() == 0) catch @panic("TEST FAIL");
+    try testing.expect(runtime.runAll() == 2);
 
-    testing.expect(manual.runAll() == 1) catch @panic("TEST FAIL");
-    testing.expect(manual.isEmpty()) catch @panic("TEST FAIL");
+    try testing.expect(runtime.setClockToNextDeadline() == 1);
+    try testing.expect(runtime.timers.tasks.count() == 0);
+
+    try testing.expect(runtime.runAll() == 1);
+    try testing.expect(runtime.isEmpty());
+
+    try testing.expect(wg.waiters == 0);
+    for (tasks) |t| {
+        try testing.expect(t.done);
+    }
 }

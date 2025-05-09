@@ -77,8 +77,8 @@ const ConcurrentRuntime = @import("../../runtime/concurrent/concurrent_runtime.z
 const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualRuntime;
 
 const Allocator = std.mem.Allocator;
-const Runnable = @import("../../task/task.zig").Runnable;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Task = @import("../../task/task.zig").Task;
 const WaitGroup = @import("../../threads/wait_group.zig").WaitGroup;
 
 const TaskA = struct {
@@ -86,8 +86,8 @@ const TaskA = struct {
     wg: *WaitGroup = undefined,
     event: *Event = undefined,
 
-    pub fn runnable(self: *TaskA) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskA) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TaskA) void {
@@ -103,8 +103,8 @@ const TaskB = struct {
     wg: *WaitGroup = undefined,
     event: *Event = undefined,
 
-    pub fn runnable(self: *TaskB) Runnable {
-        return Runnable.init(self);
+    pub fn task(self: *TaskB) Task {
+        return Task.init(self);
     }
 
     pub fn run(self: *TaskB) void {
@@ -125,7 +125,8 @@ test "manual" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ManualRuntime = ManualRuntime.init(allocator);
+    var rt: ManualRuntime = .{};
+    rt.init(allocator);
     defer rt.deinit();
 
     var event: Event = .{};
@@ -137,14 +138,13 @@ test "manual" {
     var taskB: TaskB = .{ .x = &x, .wg = &wg, .event = &event };
 
     wg.add(6);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskB.runnable(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskB.task(), allocator);
 
-    try testing.expect(rt.executor.tasks.len == 6);
     try testing.expect(rt.runLimited(6) == 6);
     try testing.expect(rt.timers.tasks.count() == 1);
     try testing.expect(rt.setClockToNextDeadline() == 1);
@@ -158,7 +158,8 @@ test "concurrent" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ConcurrentRuntime = ConcurrentRuntime.init(6, allocator);
+    var rt: ConcurrentRuntime = .{};
+    rt.init(6, allocator);
     defer rt.deinit();
 
     rt.allowTimers().start();
@@ -173,12 +174,12 @@ test "concurrent" {
     var taskB: TaskB = .{ .x = &x, .wg = &wg, .event = &event };
 
     wg.add(6);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
-    try FiberApi.spawn(rt.runtime(), taskB.runnable(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
+    try FiberApi.spawn(rt.runtime(), taskB.task(), allocator);
     wg.wait();
 }
 
@@ -187,7 +188,8 @@ test "prefired" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var rt: ConcurrentRuntime = ConcurrentRuntime.init(6, allocator);
+    var rt: ConcurrentRuntime = .{};
+    rt.init(6, allocator);
     defer rt.deinit();
 
     rt.allowTimers().start();
@@ -203,7 +205,7 @@ test "prefired" {
 
     for (0..6) |_| {
         wg.add(1);
-        try FiberApi.spawn(rt.runtime(), taskA.runnable(), allocator);
+        try FiberApi.spawn(rt.runtime(), taskA.task(), allocator);
     }
 
     wg.wait();

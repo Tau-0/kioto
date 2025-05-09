@@ -7,12 +7,12 @@ const ArrayList = std.ArrayList;
 const ManualClock = @import("manual_clock.zig").ManualClock;
 const Order = std.math.Order;
 const PriorityQueue = std.PriorityQueue;
-const Runnable = @import("../../task/task.zig").Runnable;
+const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 
 const Context = struct {};
 
 const TimedTask = struct {
-    handler: Runnable = undefined,
+    handler: *IntrusiveTask = undefined,
     deadline: time.TimePoint = undefined,
 };
 
@@ -21,8 +21,9 @@ fn lessThan(_: Context, a: TimedTask, b: TimedTask) Order {
 }
 
 pub const TimerQueue = struct {
-    const Queue = PriorityQueue(TimedTask, Context, lessThan);
     const Self = @This();
+
+    const Queue = PriorityQueue(TimedTask, Context, lessThan);
     const TimePoint = time.TimePoint;
 
     tasks: Queue = undefined,
@@ -37,7 +38,7 @@ pub const TimerQueue = struct {
         self.tasks.deinit();
     }
 
-    pub fn push(self: *Self, handler: Runnable, deadline: TimePoint) !void {
+    pub fn push(self: *Self, handler: *IntrusiveTask, deadline: TimePoint) !void {
         try self.tasks.add(.{ .handler = handler, .deadline = deadline });
     }
 
@@ -49,8 +50,8 @@ pub const TimerQueue = struct {
         return self.tasks.peek().?.deadline;
     }
 
-    pub fn takeReadyTasks(self: *Self, now: TimePoint, allocator: Allocator) !ArrayList(Runnable) {
-        var ready_tasks: ArrayList(Runnable) = ArrayList(Runnable).init(allocator);
+    pub fn takeReadyTasks(self: *Self, now: TimePoint, allocator: Allocator) !ArrayList(*IntrusiveTask) {
+        var ready_tasks = ArrayList(*IntrusiveTask).init(allocator);
         while (!self.isEmpty() and now.microseconds >= self.nextDeadline().microseconds) {
             try ready_tasks.append(self.tasks.remove().handler);
         }
@@ -60,17 +61,24 @@ pub const TimerQueue = struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Task = @import("../../task/task.zig").Task;
+
 const testing = std.testing;
 
 const TestRunnable = struct {
-    x: i32 = undefined,
+    data: *u8 = undefined,
+    hook: IntrusiveTask = .{},
 
-    pub fn runnable(self: *TestRunnable) Runnable {
-        return Runnable.init(self);
+    pub fn init(self: *TestRunnable) void {
+        self.hook.init(Task.init(self));
     }
 
     pub fn run(self: *TestRunnable) void {
-        std.debug.print("{}\n", .{self.x});
+        self.data.* += 1;
+    }
+
+    pub fn getHook(self: *TestRunnable) *IntrusiveTask {
+        return &self.hook;
     }
 };
 
@@ -79,49 +87,60 @@ test "basic" {
     defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
-    var task1: TestRunnable = .{ .x = 10 };
-    var task2: TestRunnable = .{ .x = 20 };
+    var data: u8 = 0;
+    var task1: TestRunnable = .{ .data = &data };
+    var task2: TestRunnable = .{ .data = &data };
+    var task3: TestRunnable = .{ .data = &data };
+
+    task1.init();
+    task2.init();
+    task3.init();
+
     var queue: TimerQueue = TimerQueue.init(allocator);
     defer queue.deinit();
 
-    queue.push(task1.runnable(), .{ .microseconds = 10 }) catch @panic("TEST FAIL");
-    queue.push(task2.runnable(), .{ .microseconds = 20 }) catch @panic("TEST FAIL");
-    queue.push(task2.runnable(), .{ .microseconds = 20 }) catch @panic("TEST FAIL");
+    try queue.push(task1.getHook(), .{ .microseconds = 10 });
+    try queue.push(task2.getHook(), .{ .microseconds = 20 });
+    try queue.push(task3.getHook(), .{ .microseconds = 20 });
 
-    testing.expect(queue.nextDeadline().microseconds == 10) catch @panic("TEST FAIL");
+    try testing.expect(queue.nextDeadline().microseconds == 10);
 
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 0 }, allocator) catch @panic("TEST FAIL");
+        const t = try queue.takeReadyTasks(.{ .microseconds = 0 }, allocator);
         defer t.deinit();
 
-        testing.expect(t.items.len == 0) catch @panic("TEST FAIL");
+        try testing.expect(t.items.len == 0);
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 9 }, allocator) catch @panic("TEST FAIL");
+        const t = try queue.takeReadyTasks(.{ .microseconds = 9 }, allocator);
         defer t.deinit();
 
-        testing.expect(t.items.len == 0) catch @panic("TEST FAIL");
+        try testing.expect(t.items.len == 0);
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 10 }, allocator) catch @panic("TEST FAIL");
+        const t = try queue.takeReadyTasks(.{ .microseconds = 10 }, allocator);
         defer t.deinit();
 
-        testing.expect(t.items.len == 1) catch @panic("TEST FAIL");
-        testing.expect(queue.nextDeadline().microseconds == 20) catch @panic("TEST FAIL");
+        try testing.expect(t.items.len == 1);
+        try testing.expect(queue.nextDeadline().microseconds == 20);
 
+        try testing.expect(data == 0);
         for (t.items) |h| {
             h.run();
         }
+        try testing.expect(data == 1);
     }
     {
-        const t = queue.takeReadyTasks(.{ .microseconds = 100 }, allocator) catch @panic("TEST FAIL");
+        const t = try queue.takeReadyTasks(.{ .microseconds = 100 }, allocator);
         defer t.deinit();
 
-        testing.expect(t.items.len == 2) catch @panic("TEST FAIL");
-        testing.expect(queue.isEmpty()) catch @panic("TEST FAIL");
+        try testing.expect(t.items.len == 2);
+        try testing.expect(queue.isEmpty());
 
+        try testing.expect(data == 1);
         for (t.items) |h| {
             h.run();
         }
+        try testing.expect(data == 3);
     }
 }
