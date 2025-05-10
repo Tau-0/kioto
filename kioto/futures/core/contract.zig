@@ -109,14 +109,24 @@ pub fn Future(comptime T: type) type {
 
 pub fn Contract(comptime T: type) type {
     return struct {
+        const Self = @This();
+        const State = SharedState(T);
+
         promise: Promise(T) = undefined,
         future: Future(T) = undefined,
+
+        fn init(state: *State) Self {
+            return .{
+                .promise = .{ .state = state },
+                .future = .{ .state = state },
+            };
+        }
     };
 }
 
 pub fn makeContract(comptime T: type, runtime: Runtime, allocator: Allocator) !Contract(T) {
     const state: *SharedState(T) = try SharedState(T).init(runtime, allocator);
-    return Contract(T){ .promise = .{ .state = state }, .future = .{ .state = state } };
+    return Contract(T).init(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
