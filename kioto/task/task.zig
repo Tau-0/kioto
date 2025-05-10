@@ -1,8 +1,8 @@
 const std = @import("std");
 
-// Interface, any implementation of Task should define (type T here):
-// - fn task(self: *T) Task
-// - fn run(self: *T) void
+// Interface, any implementation of Task should define (type Impl here):
+// - fn task(self: *Impl) Task
+// - fn run(self: *Impl) void
 pub const Task = struct {
     impl: *anyopaque = undefined,
     run_fn: *const fn (ptr: *anyopaque) void = undefined,
