@@ -144,7 +144,7 @@ test "get" {
 
 test "await" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    // defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
     var rt: ManualRuntime = .{};
