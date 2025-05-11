@@ -32,6 +32,8 @@ pub const IntrusiveTask = struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const testing = std.testing;
+
 const TaskA = struct {
     data: *u8,
     hook: IntrusiveTask = .{},
@@ -91,5 +93,5 @@ test "intrusive" {
         queue.popFrontUnsafe().run();
     }
 
-    try std.testing.expect(x == 15);
+    try testing.expect(x == 15);
 }

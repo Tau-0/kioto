@@ -75,34 +75,34 @@ pub fn IntrusiveList(comptime T: type) type {
             return self.sentinel.left != &self.sentinel;
         }
 
-        fn backNode(self: *Self) *Node {
+        fn backNode(self: *const Self) *Node {
             return self.sentinel.left.?;
         }
 
-        fn frontNode(self: *Self) *Node {
+        fn frontNode(self: *const Self) *Node {
             return self.sentinel.right.?;
         }
 
-        pub fn back(self: *Self) ?*T {
+        pub fn back(self: *const Self) ?*T {
             if (self.isEmpty()) {
                 return null;
             }
             return self.backUnsafe();
         }
 
-        pub fn front(self: *Self) ?*T {
+        pub fn front(self: *const Self) ?*T {
             if (self.isEmpty()) {
                 return null;
             }
             return self.frontUnsafe();
         }
 
-        pub fn backUnsafe(self: *Self) *T {
+        pub fn backUnsafe(self: *const Self) *T {
             assert(self.nonEmpty());
             return self.backNode().asItem();
         }
 
-        pub fn frontUnsafe(self: *Self) *T {
+        pub fn frontUnsafe(self: *const Self) *T {
             assert(self.nonEmpty());
             return self.frontNode().asItem();
         }
@@ -161,6 +161,15 @@ pub fn IntrusiveList(comptime T: type) type {
             node.unlink();
             return node.asItem();
         }
+
+        pub fn length(self: *const Self) usize {
+            var size: usize = 0;
+            var it: *Node = self.frontNode();
+            while (it != &self.sentinel) : (it = it.right.?) {
+                size += 1;
+            }
+            return size;
+        }
     };
 }
 
@@ -187,6 +196,7 @@ test "basic" {
     list.pushFront(&one.node); // {1, 2, 5}
     four.node.linkAfter(&two.node); // {1, 2, 4, 5}
     three.node.linkBefore(&four.node); // {1, 2, 3, 4, 5}
+    try testing.expect(list.length() == 5);
 
     // Traverse forwards.
     {
@@ -211,8 +221,11 @@ test "basic" {
     }
 
     _ = list.popFront(); // {2, 3, 4, 5}
+    try testing.expect(list.length() == 4);
     _ = list.popBack(); // {2, 3, 4}
+    try testing.expect(list.length() == 3);
     three.node.unlink(); // {2, 4}
+    try testing.expect(list.length() == 2);
 
     try testing.expect(list.frontUnsafe().data == 2);
     try testing.expect(list.backUnsafe().data == 4);
@@ -239,8 +252,12 @@ test "concatenation" {
     list2.pushBack(&three.node);
     list2.pushBack(&four.node);
     list2.pushBack(&five.node);
+    try testing.expect(list1.length() == 2);
+    try testing.expect(list2.length() == 3);
 
     list1.concatByMoving(&list2);
+    try testing.expect(list1.length() == 5);
+    try testing.expect(list2.length() == 0);
 
     try testing.expect(list1.back() == &five);
     try testing.expect(list2.isEmpty());
@@ -269,6 +286,8 @@ test "concatenation" {
 
     // Swap them back, this verifies that concatenating to an empty list works.
     list2.concatByMoving(&list1);
+    try testing.expect(list1.length() == 0);
+    try testing.expect(list2.length() == 5);
 
     // Traverse forwards.
     {

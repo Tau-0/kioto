@@ -75,6 +75,10 @@ pub const ManualRuntime = struct {
     }
 
     // Misc
+    pub fn queueSize(self: *const ManualRuntime) usize {
+        return self.executor.queueSize();
+    }
+
     pub fn isEmpty(self: *const ManualRuntime) bool {
         return self.executor.isEmpty() and self.timers.isEmpty();
     }

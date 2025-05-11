@@ -18,16 +18,18 @@ fn SharedState(comptime T: type) type {
     return struct {
         const Self = @This();
 
-        value: ?T = null,
-        callback: Callback(T) = undefined,
-        runtime: Runtime = undefined,
-        state_machine: Atomic(StateMachine) = undefined,
-        allocator: Allocator = undefined,
-        hook: IntrusiveTask = .{},
+        value: ?T,
+        callback: Callback(T),
+        runtime: ?Runtime,
+        state_machine: Atomic(StateMachine),
+        allocator: Allocator,
+        hook: IntrusiveTask,
 
-        fn init(runtime: Runtime, allocator: Allocator) !*Self {
+        fn init(allocator: Allocator) !*Self {
             var self: *Self = try allocator.create(Self);
-            self.runtime = runtime;
+            self.value = null;
+            self.callback = undefined;
+            self.runtime = null;
             self.state_machine = .init(.Initial);
             self.allocator = allocator;
             self.hook.init(Task.init(self));
@@ -38,7 +40,11 @@ fn SharedState(comptime T: type) type {
             self.allocator.destroy(self);
         }
 
-        fn getRuntime(self: *const Self) Runtime {
+        fn setRuntime(self: *Self, runtime: ?Runtime) void {
+            self.runtime = runtime;
+        }
+
+        fn getRuntime(self: *const Self) ?Runtime {
             return self.runtime;
         }
 
@@ -64,7 +70,11 @@ fn SharedState(comptime T: type) type {
 
         fn execute(self: *Self) void {
             self.state_machine.store(.Rendezvous, .seq_cst);
-            self.runtime.submitTask(&self.hook);
+            if (self.runtime != null) {
+                self.runtime.?.submitTask(&self.hook);
+            } else {
+                self.run();
+            }
         }
 
         // Task impl
@@ -82,6 +92,8 @@ pub fn Promise(comptime T: type) type {
         const Self = @This();
         const State = SharedState(T);
 
+        pub const ValueType = T;
+
         state: ?*State = null,
 
         pub fn set(self: *Self, value: T) void {
@@ -97,12 +109,24 @@ pub fn Future(comptime T: type) type {
         const Self = @This();
         const State = SharedState(T);
 
+        pub const ValueType = T;
+
         state: ?*State = null,
 
         pub fn subscribe(self: *Self, callback: Callback(T)) void {
             std.debug.assert(self.state != null);
             self.state.?.setCallback(callback);
             self.state = null;
+        }
+
+        pub fn setRuntime(self: *Self, runtime: ?Runtime) void {
+            std.debug.assert(self.state != null);
+            self.state.?.setRuntime(runtime);
+        }
+
+        pub fn getRuntime(self: *const Self) ?Runtime {
+            std.debug.assert(self.state != null);
+            return self.state.?.getRuntime();
         }
     };
 }
@@ -115,18 +139,14 @@ pub fn Contract(comptime T: type) type {
         promise: Promise(T) = undefined,
         future: Future(T) = undefined,
 
-        fn init(state: *State) Self {
+        pub fn init(allocator: Allocator) !Self {
+            const state: *State = try State.init(allocator);
             return .{
                 .promise = .{ .state = state },
                 .future = .{ .state = state },
             };
         }
     };
-}
-
-pub fn makeContract(comptime T: type, runtime: Runtime, allocator: Allocator) !Contract(T) {
-    const state: *SharedState(T) = try SharedState(T).init(runtime, allocator);
-    return Contract(T).init(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,8 +178,9 @@ test "basic" {
 
     var callback: TestCallback = .{};
 
-    var contract: Contract(u32) = try makeContract(u32, rt.runtime(), allocator);
+    var contract: Contract(u32) = try Contract(u32).init(allocator);
     contract.promise.set(10);
+    contract.future.setRuntime(rt.runtime());
     contract.future.subscribe(callback.callback());
 
     try testing.expect(callback.value == 5);

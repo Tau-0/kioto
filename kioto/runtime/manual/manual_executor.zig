@@ -49,6 +49,10 @@ pub const ManualExecutor = struct {
         return done;
     }
 
+    pub fn queueSize(self: *const ManualExecutor) usize {
+        return self.tasks.length();
+    }
+
     pub fn isEmpty(self: *const ManualExecutor) bool {
         return self.tasks.isEmpty();
     }
