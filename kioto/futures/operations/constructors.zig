@@ -31,17 +31,8 @@ pub fn unit(allocator: Allocator) !Future(Unit) {
     return ready(Unit{}, allocator);
 }
 
-fn FunctionType(comptime function: anytype) type {
-    return @TypeOf(@TypeOf(function).run);
-}
-
-fn ReturnType(comptime function: anytype) type {
-    const F = FunctionType(function);
-    return @typeInfo(F).@"fn".return_type.?;
-}
-
-pub fn spawn(comptime function: anytype, runtime: Runtime, allocator: Allocator) !Future(ReturnType(function)) {
-    const T = ReturnType(function);
+pub fn spawn(function: anytype, runtime: Runtime, allocator: Allocator) !Future(@TypeOf(function).ReturnType) {
+    const T = @TypeOf(function).ReturnType;
 
     const Closure = struct {
         promise: Promise(T),
@@ -78,6 +69,8 @@ const TestCallback = struct {
 };
 
 const TestFunction = struct {
+    pub const ReturnType = u32;
+
     done: bool = false,
 
     pub fn run(self: *@This()) u32 {

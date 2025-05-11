@@ -17,11 +17,14 @@ comptime {
     _ = @import("fibers/sync/unbuffered_channel.zig");
     _ = @import("fibers/sync/wait_group.zig");
 
+    _ = @import("futures/core/boxed_callback.zig");
     _ = @import("futures/core/callback.zig");
     _ = @import("futures/core/contract.zig");
     _ = @import("futures/core/unit.zig");
-    // _ = @import("futures/operations/combinators.zig");
+    _ = @import("futures/operations/both.zig");
+    _ = @import("futures/operations/combinators.zig");
     _ = @import("futures/operations/constructors.zig");
+    _ = @import("futures/operations/first.zig");
     _ = @import("futures/operations/terminators.zig");
 
     _ = @import("runtime/concurrent/concurrent_runtime.zig");
@@ -52,3 +55,4 @@ comptime {
 // 1. Future
 // 2. Stack Pool
 // 3. Mutexed, MCS Lock, Barrier
+// 4. MPSC Stack

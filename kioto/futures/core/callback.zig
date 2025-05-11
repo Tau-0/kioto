@@ -7,6 +7,8 @@ pub fn Callback(comptime T: type) type {
     return struct {
         const Self = @This();
 
+        pub const ValueType = T;
+
         impl: *anyopaque = undefined,
         run_fn: *const fn (ptr: *anyopaque, value: T) void = undefined,
 
