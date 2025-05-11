@@ -54,7 +54,6 @@ pub fn spawn(comptime function: anytype, runtime: Runtime, allocator: Allocator)
     };
 
     const contract = try makeContract(T, allocator);
-    // contract.future.setRuntime(runtime);
     const closure: Closure = .{ .promise = contract.promise, .function = function };
     try submitTask(closure, runtime, allocator);
     return contract.future;
