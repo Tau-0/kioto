@@ -2,6 +2,10 @@ const std = @import("std");
 
 const time = @import("../time.zig");
 
+const stacks = struct {
+    usingnamespace @import("../stack.zig");
+};
+
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Clock = @import("manual_clock.zig").ManualClock;
@@ -16,56 +20,70 @@ pub const ManualRuntime = struct {
     const TimePoint = time.TimePoint;
     const Duration = time.Duration;
 
+    const stack_pool_capacity: usize = 1024;
+
     executor: Executor = .{},
     timers: TimerQueue = undefined,
     clock: Clock = .{},
     allocator: Allocator = undefined,
+    stack_pool: stacks.StackPool = undefined,
 
     pub fn init(self: *Self, allocator: Allocator) void {
         self.executor.init();
         self.timers = TimerQueue.init(allocator);
         self.allocator = allocator;
+        self.stack_pool = .{};
+        self.stack_pool.init(stack_pool_capacity, allocator);
     }
 
-    pub fn deinit(self: *ManualRuntime) void {
+    pub fn deinit(self: *Self) void {
         self.timers.deinit();
         self.executor.deinit();
+        self.stack_pool.deinit();
     }
 
     // Runtime interface
-    pub fn submitTask(self: *ManualRuntime, task: *IntrusiveTask) void {
+    pub fn submitTask(self: *Self, task: *IntrusiveTask) void {
         self.executor.submit(task);
     }
 
-    pub fn submitTimer(self: *ManualRuntime, task: *IntrusiveTask, delay: Duration) void {
+    pub fn submitTimer(self: *Self, task: *IntrusiveTask, delay: Duration) void {
         const deadline: TimePoint = .{ .microseconds = self.clock.now().microseconds + delay.microseconds };
         self.timers.push(task, deadline) catch unreachable;
     }
 
-    pub fn runtime(self: *ManualRuntime) Runtime {
+    pub fn allocateStack(self: *Self) Allocator.Error!*stacks.Stack {
+        return self.stack_pool.allocate();
+    }
+
+    pub fn releaseStack(self: *Self, stack: *stacks.Stack) void {
+        self.stack_pool.release(stack);
+    }
+
+    pub fn runtime(self: *Self) Runtime {
         return Runtime.init(self);
     }
 
     // Tasks
-    pub fn runOne(self: *ManualRuntime) bool {
+    pub fn runOne(self: *Self) bool {
         return self.executor.runOne();
     }
 
-    pub fn runLimited(self: *ManualRuntime, limit: usize) usize {
+    pub fn runLimited(self: *Self, limit: usize) usize {
         return self.executor.runLimited(limit);
     }
 
-    pub fn runAll(self: *ManualRuntime) usize {
+    pub fn runAll(self: *Self) usize {
         return self.executor.runAll();
     }
 
     // Timers
-    pub fn advanceClock(self: *ManualRuntime, delta: Duration) usize {
+    pub fn advanceClock(self: *Self, delta: Duration) usize {
         self.clock.advance(delta);
         return self.submitReadyTasks();
     }
 
-    pub fn setClockToNextDeadline(self: *ManualRuntime) usize {
+    pub fn setClockToNextDeadline(self: *Self) usize {
         if (self.timers.isEmpty()) {
             return 0;
         }
@@ -75,15 +93,15 @@ pub const ManualRuntime = struct {
     }
 
     // Misc
-    pub fn queueSize(self: *const ManualRuntime) usize {
+    pub fn queueSize(self: *const Self) usize {
         return self.executor.queueSize();
     }
 
-    pub fn isEmpty(self: *const ManualRuntime) bool {
+    pub fn isEmpty(self: *const Self) bool {
         return self.executor.isEmpty() and self.timers.isEmpty();
     }
 
-    fn submitReadyTasks(self: *ManualRuntime) usize {
+    fn submitReadyTasks(self: *Self) usize {
         var tasks: ArrayList(*IntrusiveTask) = self.timers.takeReadyTasks(self.clock.now(), self.allocator) catch |err| std.debug.panic("Can not submit ready tasks; error: {}\n", .{err});
         defer tasks.deinit();
         for (tasks.items) |t| {

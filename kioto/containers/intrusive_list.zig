@@ -52,7 +52,7 @@ pub fn IntrusiveList(comptime T: type) type {
             }
 
             pub fn asItem(self: *Node) *T {
-                return @fieldParentPtr("node", self);
+                return @alignCast(@fieldParentPtr("node", self));
             }
         };
 

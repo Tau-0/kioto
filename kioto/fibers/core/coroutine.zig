@@ -1,29 +1,25 @@
 const std = @import("std");
 
-const Context = @import("machine/context.zig").Context;
-const Stack = @import("machine/stack.zig").Stack;
+const Context = @import("context.zig").Context;
+const Stack = @import("../../runtime/stack.zig").Stack;
 const Task = @import("../../task/task.zig").Task;
 
 threadlocal var current_coroutine: ?*Coroutine = null;
 
 pub const Coroutine = struct {
     task: Task = undefined,
-    stack: Stack = undefined,
+    stack: *Stack = undefined,
     self_context: Context = undefined,
     caller_context: Context = undefined,
     is_completed: bool = false,
 
-    pub fn init(task: Task, allocator: std.mem.Allocator) !Coroutine {
+    pub fn init(task: Task, stack: *Stack) Coroutine {
         var result: Coroutine = .{
             .task = task,
-            .stack = try Stack.init(16, allocator),
+            .stack = stack,
         };
-        result.self_context = Context.init(&result.stack, Coroutine.Trampoline);
+        result.self_context = Context.init(result.stack, Coroutine.Trampoline);
         return result;
-    }
-
-    pub fn deinit(self: *Coroutine) void {
-        self.stack.deinit();
     }
 
     pub fn resumeCoro(self: *Coroutine) void {
@@ -62,6 +58,8 @@ pub const Coroutine = struct {
 
 const testing = std.testing;
 
+const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualRuntime;
+
 const TaskA = struct {
     pub fn task(self: *TaskA) Task {
         return Task.init(self);
@@ -92,16 +90,24 @@ const TaskB = struct {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
 
+    var manual: ManualRuntime = .{};
+    manual.init(allocator);
+    defer manual.deinit();
+
+    const stack1: *Stack = try manual.allocateStack();
+    defer manual.releaseStack(stack1);
+
+    const stack2: *Stack = try manual.allocateStack();
+    defer manual.releaseStack(stack2);
+
     var t1: TaskA = .{};
-    var coro1 = try Coroutine.init(t1.task(), allocator);
-    defer coro1.deinit();
+    var coro1 = Coroutine.init(t1.task(), stack1);
 
     var t2: TaskB = .{ .coro = &coro1 };
-    var coro2 = try Coroutine.init(t2.task(), allocator);
-    defer coro2.deinit();
+    var coro2 = Coroutine.init(t2.task(), stack2);
 
     coro2.resumeCoro();
     std.debug.print("3\n", .{});

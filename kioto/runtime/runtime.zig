@@ -2,16 +2,22 @@ const std = @import("std");
 
 const time = @import("time.zig");
 
+const Allocator = std.mem.Allocator;
 const IntrusiveTask = @import("../task/intrusive_task.zig").IntrusiveTask;
+const Stack = @import("stack.zig").Stack;
 
 // Interface, any implementation of Runtime should implement (type T here):
 // - fn runtime(self: *T) Runtime
 // - fn submitTask(self: *T, task: *IntrusiveTask) void
 // - fn submitTimer(self: *T, task: *IntrusiveTask, delay: time.Duration) void
+// - fn allocateStack(self: *T) Allocator.Error!*Stack
+// - fn releaseStack(self: *T, stack: *Stack) void
 pub const Runtime = struct {
     impl: *anyopaque = undefined,
     submit_task_fn: *const fn (ptr: *anyopaque, task: *IntrusiveTask) void = undefined,
     submit_timer_fn: *const fn (ptr: *anyopaque, task: *IntrusiveTask, delay: time.Duration) void = undefined,
+    allocate_stack_fn: *const fn (ptr: *anyopaque) Allocator.Error!*Stack = undefined,
+    release_stack_fn: *const fn (ptr: *anyopaque, stack: *Stack) void = undefined,
 
     pub fn init(impl: anytype) Runtime {
         const T = @TypeOf(impl);
@@ -26,12 +32,24 @@ pub const Runtime = struct {
                 const self: T = @ptrCast(@alignCast(ptr));
                 self.submitTimer(task, delay);
             }
+
+            pub fn allocateStack(ptr: *anyopaque) Allocator.Error!*Stack {
+                const self: T = @ptrCast(@alignCast(ptr));
+                return self.allocateStack();
+            }
+
+            pub fn releaseStack(ptr: *anyopaque, stack: *Stack) void {
+                const self: T = @ptrCast(@alignCast(ptr));
+                self.releaseStack(stack);
+            }
         };
 
         return .{
             .impl = impl,
             .submit_task_fn = Impl.submitTask,
             .submit_timer_fn = Impl.submitTimer,
+            .allocate_stack_fn = Impl.allocateStack,
+            .release_stack_fn = Impl.releaseStack,
         };
     }
 
@@ -41,6 +59,14 @@ pub const Runtime = struct {
 
     pub fn submitTimer(self: Runtime, task: *IntrusiveTask, delay: time.Duration) void {
         self.submit_timer_fn(self.impl, task, delay);
+    }
+
+    pub fn allocateStack(self: Runtime) Allocator.Error!*Stack {
+        return self.allocate_stack_fn(self.impl);
+    }
+
+    pub fn releaseStack(self: Runtime, stack: *Stack) void {
+        self.release_stack_fn(self.impl, stack);
     }
 };
 

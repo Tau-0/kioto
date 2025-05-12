@@ -2,6 +2,10 @@ const std = @import("std");
 
 const time = @import("../time.zig");
 
+const stacks = struct {
+    usingnamespace @import("../stack.zig");
+};
+
 const Allocator = std.mem.Allocator;
 const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Runtime = @import("../runtime.zig").Runtime;
@@ -11,13 +15,18 @@ const TimerThread = @import("timer_thread.zig").TimerThread;
 pub const ConcurrentRuntime = struct {
     const Self = @This();
 
+    const stack_pool_capacity: usize = 4096;
+
     pool: ThreadPool = .{},
     timer_thread: ?TimerThread = null,
     allocator: Allocator = undefined,
+    stack_pool: stacks.StackPool = undefined,
 
     pub fn init(self: *Self, worker_count: usize, allocator: Allocator) void {
         self.pool.init(worker_count, allocator) catch unreachable;
         self.allocator = allocator;
+        self.stack_pool = .{};
+        self.stack_pool.init(stack_pool_capacity, allocator);
     }
 
     pub fn deinit(self: *Self) void {
@@ -25,6 +34,7 @@ pub const ConcurrentRuntime = struct {
             self.timer_thread.?.deinit();
         }
         self.pool.deinit();
+        self.stack_pool.deinit();
     }
 
     pub fn start(self: *Self) void {
@@ -54,6 +64,14 @@ pub const ConcurrentRuntime = struct {
     pub fn submitTimer(self: *Self, task: *IntrusiveTask, delay: time.Duration) void {
         std.debug.assert(self.timer_thread != null);
         self.timer_thread.?.submit(task, delay) catch unreachable;
+    }
+
+    pub fn allocateStack(self: *Self) Allocator.Error!*stacks.Stack {
+        return self.stack_pool.allocate();
+    }
+
+    pub fn releaseStack(self: *Self, stack: *stacks.Stack) void {
+        self.stack_pool.release(stack);
     }
 
     pub fn runtime(self: *Self) Runtime {

@@ -6,6 +6,7 @@ const Coroutine = @import("coroutine.zig").Coroutine;
 const Duration = @import("../../runtime/time.zig").Duration;
 const IntrusiveTask = @import("../../task/intrusive_task.zig").IntrusiveTask;
 const Runtime = @import("../../runtime/runtime.zig").Runtime;
+const Stack = @import("../../runtime/stack.zig").Stack;
 const Task = @import("../../task/task.zig").Task;
 
 threadlocal var current_fiber: ?*Fiber = null;
@@ -13,6 +14,7 @@ threadlocal var current_fiber: ?*Fiber = null;
 pub const Fiber = struct {
     const Self = @This();
 
+    stack: *Stack = undefined,
     coro: Coroutine = undefined,
     runtime: Runtime = undefined,
     hook: IntrusiveTask = .{},
@@ -21,15 +23,17 @@ pub const Fiber = struct {
     on_heap: bool = undefined,
 
     pub fn init(self: *Self, runtime: Runtime, task: Task, allocator: Allocator, on_heap: bool) !void {
-        self.coro = try Coroutine.init(task, allocator);
+        self.stack = try runtime.allocateStack();
+        self.coro = Coroutine.init(task, self.stack);
         self.runtime = runtime;
         self.hook.init(Task.init(self));
+        self.awaiter = null;
         self.allocator = allocator;
         self.on_heap = on_heap;
     }
 
     pub fn deinit(self: *Fiber) void {
-        self.coro.deinit();
+        self.runtime.releaseStack(self.stack);
         if (self.on_heap) {
             self.allocator.destroy(self);
         }
@@ -105,8 +109,8 @@ const TestRunnable = struct {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
-    defer testing.expect(!gpa.detectLeaks()) catch @panic("TEST FAIL");
 
     var runtime: ConcurrentRuntime = .{};
     runtime.init(1, allocator);

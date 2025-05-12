@@ -1,5 +1,5 @@
 const builtin = @import("builtin");
-const Stack = @import("stack.zig").Stack;
+const Stack = @import("../../runtime/stack.zig").Stack;
 
 // const SwitchContext = switch (builtin.cpu.arch) {
 //     .x86_64 => switch (builtin.os.tag) {
@@ -66,7 +66,7 @@ pub const Context = struct {
 
     pub fn init(stack: *Stack, trampoline: *const anyopaque) Context {
         return .{
-            .rsp = setupContext(stack.memory.ptr + stack.memory.len - 1, trampoline),
+            .rsp = setupContext(&stack.memory[stack.memory.len - 1], trampoline),
         };
     }
 
@@ -79,6 +79,8 @@ pub const Context = struct {
 
 const std = @import("std");
 const testing = std.testing;
+
+const ManualRuntime = @import("../../runtime/manual/manual_runtime.zig").ManualRuntime;
 
 var context1: Context = undefined;
 var context2: Context = undefined;
@@ -94,12 +96,17 @@ fn testTrampoline() noreturn {
 
 test "basic" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer testing.expect(gpa.deinit() == .ok) catch @panic("TEST FAIL");
     const allocator = gpa.allocator();
-    var stack: Stack = try Stack.init(2, allocator);
-    defer testing.expect(!gpa.detectLeaks()) catch unreachable;
-    defer stack.deinit();
 
-    context1 = Context.init(&stack, @as(*const anyopaque, testTrampoline));
+    var manual: ManualRuntime = .{};
+    manual.init(allocator);
+    defer manual.deinit();
+
+    const stack: *Stack = try manual.allocateStack();
+    defer manual.releaseStack(stack);
+
+    context1 = Context.init(stack, @as(*const anyopaque, testTrampoline));
 
     context2.switchTo(&context1);
     std.debug.print("2\n", .{});
