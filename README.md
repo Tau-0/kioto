@@ -62,4 +62,4 @@ zig build test
 ```
 ## Thanks
 
-Roman Lipovsky for the amazing course "Theory and Practice of Concurrency".
+Roman Lipovsky for the amazing course "Theory and Practice of Concurrency"
