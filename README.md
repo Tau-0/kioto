@@ -24,7 +24,7 @@ Concurrency library for Zig
       - `map` – maps a value of type `T` to type `U`
       - `flatten` – flattens nested futures (for asynchronous mappers)
       - `flatMap` – `Map` + `Flatten`
-      - `via` – sets executor for mappers
+      - `via` – sets runtime for mappers
       - `after` – attaches timeout
     - Parallel composition
       - `both`
