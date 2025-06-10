@@ -4,17 +4,12 @@ Concurrency library for Zig
 
 ## Features
 
-- Orthogonal basis for concurrency: _runtime_ × _fibers_ × _futures_
-- Stackful fibers with stack pooling
-- Functional futures with combinators
-
-## Contents
-
+Orthogonal abstractions for concurrency: _runtime_ × _fibers_ × _futures_:
 - [Runtime](kioto/runtime)
   - Multi-threaded `ConcurrentRuntime`
   - Deterministic `ManualRuntime` for testing and debugging
   - Timers
-- [Futures](kioto/futures)
+- [Functional futures with combinators](kioto/futures)
   - Constructors
     - `makeContract`
     - `spawn`
@@ -33,7 +28,7 @@ Concurrency library for Zig
   - Terminators
     - `get` – unwraps value from future, blocks thread
     - `await` – unwraps value from future, does not block thread
-- [Stackful Fibers](kioto/fibers)
+- [Stackful fibers with stack pooling](kioto/fibers)
   - Api
     - `yield`
     - `sleepFor`
