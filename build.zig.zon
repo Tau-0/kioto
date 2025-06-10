@@ -1,6 +1,6 @@
 .{
     .name = .kioto,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .fingerprint = 0xbb3b45ee7c1fcc59, // Changing this has security and trust implications.
     .minimum_zig_version = "0.14.0",
     .dependencies = .{},

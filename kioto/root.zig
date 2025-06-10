@@ -50,8 +50,3 @@ comptime {
     _ = @import("threads/spinlock.zig");
     _ = @import("threads/wait_group.zig");
 }
-
-// TODO:
-// - Mutexed, MCS Lock, Barrier
-// - MPSC Stack
-// - TryFuture
