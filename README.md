@@ -16,6 +16,7 @@ Concurrency library for Zig
   - Timers
 - [Futures](kioto/futures)
   - Constructors
+    - `makeContract`
     - `spawn`
     - `ready`
     - `unit`
