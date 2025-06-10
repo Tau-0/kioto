@@ -64,3 +64,6 @@ zig build -Doptimize=ReleaseFast playground
 # Run tests
 zig build test
 ```
+## Thanks
+
+Roman Lipovsky for the amazing course "Theory and Practice of Concurrency".
