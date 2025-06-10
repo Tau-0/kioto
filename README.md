@@ -25,7 +25,7 @@ Concurrency library for Zig
       - `flatten` – flattens nested futures (for asynchronous mappers)
       - `flatMap` – `Map` + `Flatten`
       - `via` – sets runtime for mappers
-      - `after` – attaches timeout
+      - `after` – sets delay
     - Parallel composition
       - `both`
       - `first`
