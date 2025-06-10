@@ -33,7 +33,7 @@ Concurrency library for Zig
     - `get` – unwraps value from future, blocks thread
     - `await` – unwraps value from future, does not block thread
 - [Stackful Fibers](kioto/fibers)
-  - Scheduling
+  - Api
     - `yield`
     - `sleepFor`
     - `suspendFiber`
